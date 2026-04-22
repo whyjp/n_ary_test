@@ -18,8 +18,11 @@ export interface CaseResult {
   kind: LeakageCase["kind"];
   hyper: { tql: string; count: number; ns_ids: string[]; error?: string };
   triplet: { cypher: string; count: number; error?: string };
+  triplet_hub: { cypher: string; count: number; error?: string };
   phantom: boolean;
   ratio: string;
+  hub_ratio: string;              // triplet_hub / hyper (∞ when hub>0 and hyper=0)
+  hub_reduction_pct: number;      // percent reduction in phantom vs naive triplet
   verdict?: Verdict;
 }
 
@@ -28,7 +31,9 @@ export interface LeakageReport {
   falkor_available: boolean;
   total_hyper: number;
   total_triplet: number;
+  total_triplet_hub: number;
   total_phantom: number;
+  total_phantom_hub: number;
   avg_score: number;
   judge: "heuristic" | "openai" | "anthropic";
   cases: CaseResult[];
@@ -79,17 +84,29 @@ async function typedbAlive(): Promise<boolean> {
 }
 
 async function runOne(tok: string, spec: LeakageCase): Promise<CaseResult> {
-  const [h, t] = await Promise.all([typedbNsIds(tok, spec.hyper), tripletCount(spec.triplet)]);
+  const [h, t, hub] = await Promise.all([
+    typedbNsIds(tok, spec.hyper),
+    tripletCount(spec.triplet),
+    tripletCount(spec.triplet_hub),
+  ]);
   const phantom = h.ids.length === 0 && t.count > 0;
+  // Phantom reduction: how much of the naive-triplet phantom the hub tier
+  // eliminates. 100% = hub matches n-ary exactly; 0% = hub = naive triplet.
+  const naivePhantom = Math.max(0, t.count - h.ids.length);
+  const hubPhantom   = Math.max(0, hub.count - h.ids.length);
+  const hubReduction = naivePhantom === 0 ? 0 : Math.round(((naivePhantom - hubPhantom) / naivePhantom) * 100);
   const base: CaseResult = {
     id: spec.id,
     title: spec.title,
     note: spec.note,
     kind: spec.kind,
-    hyper:   { tql: spec.hyper,   count: h.ids.length, ns_ids: h.ids, error: h.error },
-    triplet: { cypher: spec.triplet, count: t.count, error: t.error },
+    hyper:       { tql: spec.hyper,   count: h.ids.length, ns_ids: h.ids, error: h.error },
+    triplet:     { cypher: spec.triplet, count: t.count, error: t.error },
+    triplet_hub: { cypher: spec.triplet_hub, count: hub.count, error: hub.error },
     phantom,
-    ratio: h.ids.length === 0 ? (t.count === 0 ? "—" : "∞") : (t.count / h.ids.length).toFixed(2),
+    ratio:     h.ids.length === 0 ? (t.count   === 0 ? "—" : "∞") : (t.count / h.ids.length).toFixed(2),
+    hub_ratio: h.ids.length === 0 ? (hub.count === 0 ? "—" : "∞") : (hub.count / h.ids.length).toFixed(2),
+    hub_reduction_pct: hubReduction,
   };
   base.verdict = await judgeCase(base, spec);
   return base;
@@ -111,7 +128,8 @@ export async function runLeakage(): Promise<LeakageReport> {
   const report: LeakageReport = {
     typedb_available: typedbAv,
     falkor_available: falkorAv,
-    total_hyper: 0, total_triplet: 0, total_phantom: 0,
+    total_hyper: 0, total_triplet: 0, total_triplet_hub: 0,
+    total_phantom: 0, total_phantom_hub: 0,
     avg_score: 0,
     judge: (process.env.LLM_JUDGE?.toLowerCase() as any) ?? "heuristic",
     cases: [],
@@ -124,7 +142,11 @@ export async function runLeakage(): Promise<LeakageReport> {
     report.cases.push(result);
     report.total_hyper += result.hyper.count;
     report.total_triplet += result.triplet.count;
+    report.total_triplet_hub += result.triplet_hub.count;
     if (result.phantom) report.total_phantom += result.triplet.count;
+    if (result.hyper.count === 0 && result.triplet_hub.count > 0) {
+      report.total_phantom_hub += result.triplet_hub.count;
+    }
   }
   report.avg_score = report.cases.length
     ? Math.round(report.cases.reduce((a, c) => a + (c.verdict?.score ?? 0), 0) / report.cases.length)

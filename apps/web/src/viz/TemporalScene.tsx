@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Stars } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 
 import type { Dataset, Episode, EntityKind, Filters, ViewMode } from "../types";
@@ -155,8 +155,6 @@ export function TemporalScene({ dataset, viewMode, filters, spacingMult, nodeSca
       <pointLight color={0x2de8c8} intensity={1.0} distance={120} position={[-15, 20, 12]} />
       <pointLight color={0xff6b9d} intensity={0.5} distance={100} position={[15, -10, -12]} />
       <pointLight color={0xffb347} intensity={0.6} distance={100} position={[0, 30, 0]} />
-
-      <Stars radius={80} depth={40} count={900} factor={3} fade speed={0.3} />
 
       {buckets.map((b, idx) => {
         const y = yForBucket(idx);

@@ -23,6 +23,7 @@ export interface Verdict {
 export function heuristicScore(c: CaseResult, spec: LeakageCase): Verdict {
   const h = c.hyper.count;
   const t = c.triplet.count;
+  const hub = c.triplet_hub.count;
   let score = 100, kind: Verdict["kind"] = "exact", rule = "";
 
   if (h === 0 && t === 0) {
@@ -49,6 +50,15 @@ export function heuristicScore(c: CaseResult, spec: LeakageCase): Verdict {
     rule = `triplet=${t}, hyper=${h} → ${h - t}건을 놓침 (pair-wise dedupe로 event cardinality가 소실).`;
   }
 
+  // Attach hub-tier commentary — doesn't change the naive score (the score is
+  // what a query author actually gets from pair-wise), but documents how much
+  // of the phantom a (minute, player)-hub constraint would eliminate.
+  if (t > 0 && c.hub_reduction_pct !== 0) {
+    rule += ` Hub(min,player) 제한: triplet_hub=${hub} → phantom ${c.hub_reduction_pct}% 감소 (0%는 축소 없음, 100%는 n-ary 수치와 동일).`;
+  } else if (h === 0 && hub > 0) {
+    rule += ` Hub 제한으로도 ${hub}개의 phantom 잔존 — 에피소드 경계 없이는 hub 내부 재조합을 막을 수 없음.`;
+  }
+
   // Multi-hop case는 weight를 더 부여하고 싶다면 여기서 조정. 기준 점수는 동일하게 유지.
   return { score, kind, rule_verdict: rule, judge: "heuristic" };
 }
@@ -70,8 +80,9 @@ Context: two graph databases hold the SAME MMORPG events.
 Question (${spec.kind}): ${c.title}
 Note: ${c.note}
 
-Hyperedge query (ground truth) returned: ${c.hyper.count} answers.
-Triplet query     (candidate) returned: ${c.triplet.count} answers.
+Hyperedge query      (n-ary ground truth) returned: ${c.hyper.count} answers.
+Triplet naive query  (raw pair-wise)      returned: ${c.triplet.count} answers.
+Triplet hub query    (minute×player hub-scoped) returned: ${c.triplet_hub.count} answers.
 
 Score the triplet response from 0 (all phantom) to 100 (exact match),
 considering whether the response contains cross-episode false positives

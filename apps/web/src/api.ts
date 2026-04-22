@@ -47,13 +47,24 @@ export interface BenchmarkInfo {
     cases: number;
     total_hyper: number;
     total_triplet: number;
+    total_triplet_hub: number;
     total_phantom: number;
+    total_phantom_hub: number;
     phantom_cases: number;
   } | null;
 }
 
 export async function fetchBenchmarkInfo(): Promise<BenchmarkInfo> {
   const res = await fetch("/api/benchmark-info");
+  if (!res.ok) {
+    return {
+      typedb: { alive: false, database: "—", episodes: 0, entities: 0, cross_minute: 0, cross_hour: 0, window: null },
+      falkor: { alive: false, graph: "—", nodes: 0, edges: 0 },
+      relation_counts: {},
+      activity_counts: {},
+      leakage: null,
+    };
+  }
   return await res.json();
 }
 
@@ -72,8 +83,11 @@ export interface CaseResultResponse {
   kind: "co_occur" | "multi_hop" | "cardinality";
   hyper: { tql: string; count: number; ns_ids: string[]; error?: string };
   triplet: { cypher: string; count: number; error?: string };
+  triplet_hub: { cypher: string; count: number; error?: string };
   phantom: boolean;
   ratio: string;
+  hub_ratio: string;
+  hub_reduction_pct: number;
   verdict?: {
     score: number;
     kind: "phantom" | "underrecall" | "exact" | "empty";
@@ -103,10 +117,10 @@ export interface BenchmarkReport {
   };
   latency: Array<{
     id: string; title: string; kind: "co_occur" | "multi_hop" | "cardinality";
-    hyper_ms_median: number; triplet_ms_median: number;
-    hyper_ms_samples: number[]; triplet_ms_samples: number[];
+    hyper_ms_median: number; triplet_ms_median: number; triplet_hub_ms_median: number;
+    hyper_ms_samples: number[]; triplet_ms_samples: number[]; triplet_hub_ms_samples: number[];
   }>;
-  totals: { hyper_ms_median: number; triplet_ms_median: number };
+  totals: { hyper_ms_median: number; triplet_ms_median: number; triplet_hub_ms_median: number };
   stale: boolean;
 }
 

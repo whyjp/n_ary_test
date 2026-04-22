@@ -65,13 +65,13 @@ export function StatsPanel({ dataset, filters, typedbAvailable, falkorAvailable,
         <span className="v">{dataset.seed}</span>
       </div>
       <div className="row">
-        <span className="k">TypeDB</span>
+        <span className="k">TypeDB · n-ary</span>
         <span className="v" style={{ color: typedbAvailable ? "var(--accent-nary)" : "var(--accent-red)" }}>
           {typedbAvailable === null ? "…" : typedbAvailable ? "connected" : "offline"}
         </span>
       </div>
       <div className="row">
-        <span className="k">FalkorDB</span>
+        <span className="k">FalkorDB · triplet</span>
         <span className="v" style={{ color: falkorAvailable ? "var(--accent-nary)" : "var(--accent-red)" }}>
           {falkorAvailable === null ? "…" : falkorAvailable ? "connected" : "offline"}
         </span>
@@ -84,9 +84,18 @@ export function StatsPanel({ dataset, filters, typedbAvailable, falkorAvailable,
           {dataSource ?? "—"}
         </span>
       </div>
-      <button className="filter-btn" style={{ marginTop: 8 }} onClick={onRefresh}>
-        refresh from typedb
-      </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+        <button className="filter-btn" onClick={onRefresh} title="서버의 TypeDB 캐시를 재동기화">
+          ↻ refresh dataset (from TypeDB)
+        </button>
+        <div style={{
+          fontFamily: "var(--mono)", fontSize: 9, letterSpacing: "0.08em",
+          color: "var(--text-faint)", lineHeight: 1.6,
+        }}>
+          FalkorDB 재적재(hub 포함)는 CLI에서:<br />
+          <code style={{ color: "var(--accent-pg)" }}>bash scripts/falkor-load.sh --reset</code>
+        </div>
+      </div>
     </div>
   );
 }

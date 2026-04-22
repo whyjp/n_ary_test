@@ -12,8 +12,9 @@
   --accent-purple: #a78bfa;
   --accent-blue: #60a5fa;
   --accent-red: #ff6b6b;
-  --display: "Fraunces", serif;
-  --body: "Archivo", sans-serif;
+  --sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --display: var(--sans);
+  --body: var(--sans);
   --mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
@@ -452,6 +453,7 @@ body,
 }
 .bar-fill.hyper   { background: var(--accent-nary); }
 .bar-fill.triplet { background: var(--accent-pg); }
+.bar-fill.hub     { background: var(--accent-purple); }
 .bar-val {
   font-variant-numeric: tabular-nums; color: var(--text); text-align: right;
   font-size: 10px; letter-spacing: 0;
@@ -563,6 +565,13 @@ body,
 .score-chip.score-ok   { background: rgba(45,232,200,0.14); color: var(--accent-nary); }
 .score-chip.score-warn { background: rgba(255,179,71,0.14); color: var(--accent-pg); }
 .score-chip.score-bad  { background: rgba(255,107,107,0.14); color: var(--accent-red); }
+.reduction-chip {
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  padding: 1px 5px; border-radius: 1px; letter-spacing: 0.04em;
+}
+.reduction-chip.reduction-ok   { background: rgba(167,139,250,0.18); color: var(--accent-purple); }
+.reduction-chip.reduction-warn { background: rgba(255,179,71,0.14);  color: var(--accent-pg); }
+.reduction-chip.reduction-bad  { background: rgba(255,107,107,0.14); color: var(--accent-red); }
 .leakage-case-verdict {
   font-size: 10px; color: var(--text-dim); line-height: 1.5;
   margin-top: 4px; padding-top: 4px;

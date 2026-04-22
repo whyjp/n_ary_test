@@ -73,15 +73,17 @@ export interface LatencyCaseReport {
   kind: LeakageCase["kind"];
   hyper_ms_median: number;
   triplet_ms_median: number;
+  triplet_hub_ms_median: number;
   hyper_ms_samples: number[];
   triplet_ms_samples: number[];
+  triplet_hub_ms_samples: number[];
 }
 
 export interface BenchmarkReport {
   iterations: number;
   storage: StorageReport;
   latency: LatencyCaseReport[];
-  totals: { hyper_ms_median: number; triplet_ms_median: number };
+  totals: { hyper_ms_median: number; triplet_ms_median: number; triplet_hub_ms_median: number };
   stale: boolean; // true if datasets are unreachable
 }
 
@@ -125,7 +127,7 @@ export async function runBenchmark(
       iterations,
       storage,
       latency: [],
-      totals: { hyper_ms_median: 0, triplet_ms_median: 0 },
+      totals: { hyper_ms_median: 0, triplet_ms_median: 0, triplet_hub_ms_median: 0 },
       stale: true,
     };
   }
@@ -135,11 +137,13 @@ export async function runBenchmark(
   for (const c of cases) {
     const hyperSamples: number[] = [];
     const tripletSamples: number[] = [];
+    const tripletHubSamples: number[] = [];
     // First call warms caches; we still sample it but it's usually the
     // slowest — the median over ≥3 samples squashes that.
     for (let i = 0; i < iterations; i++) {
       try { hyperSamples.push(await timedTypedb(token, c.hyper)); } catch {}
       try { tripletSamples.push(await timedFalkor(c.triplet)); } catch {}
+      try { tripletHubSamples.push(await timedFalkor(c.triplet_hub)); } catch {}
     }
     latency.push({
       id: c.id,
@@ -147,14 +151,17 @@ export async function runBenchmark(
       kind: c.kind,
       hyper_ms_median: Math.round(median(hyperSamples) * 100) / 100,
       triplet_ms_median: Math.round(median(tripletSamples) * 100) / 100,
+      triplet_hub_ms_median: Math.round(median(tripletHubSamples) * 100) / 100,
       hyper_ms_samples: hyperSamples.map((v) => Math.round(v * 100) / 100),
       triplet_ms_samples: tripletSamples.map((v) => Math.round(v * 100) / 100),
+      triplet_hub_ms_samples: tripletHubSamples.map((v) => Math.round(v * 100) / 100),
     });
   }
 
   const totals = {
-    hyper_ms_median:   Math.round(median(latency.map((l) => l.hyper_ms_median)) * 100) / 100,
-    triplet_ms_median: Math.round(median(latency.map((l) => l.triplet_ms_median)) * 100) / 100,
+    hyper_ms_median:       Math.round(median(latency.map((l) => l.hyper_ms_median)) * 100) / 100,
+    triplet_ms_median:     Math.round(median(latency.map((l) => l.triplet_ms_median)) * 100) / 100,
+    triplet_hub_ms_median: Math.round(median(latency.map((l) => l.triplet_hub_ms_median)) * 100) / 100,
   };
   return { iterations, storage, latency, totals, stale: false };
 }

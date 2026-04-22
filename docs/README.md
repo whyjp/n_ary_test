@@ -8,8 +8,14 @@
 관련 설계 문서:
 - `../README.md` — 실행 순서 · 스택 · API 레퍼런스
 - `../backend/schema.tql` — TypeDB n-ary 스키마 (L0/L1/L2/L3 NodeSet)
-- `../backend/src/falkor/generator.ts` — FalkorDB triplet reification
+- `../backend/src/falkor/generator.ts` — FalkorDB triplet reification + 허브
 - `../backend/src/leakage/cases.ts` — 8개 테스트 케이스의 TypeQL/Cypher 쌍
+
+이 저장소 문서 지도 (이 README가 마스터 요약, 아래는 세부 인사이트):
+- [`thesis.md`](thesis.md) — 한 줄 명제 + 케이스별 leakage 원리
+- [`schema-tiers.md`](schema-tiers.md) — 세 가지 스키마 티어 비교 (naive → hub → n-ary)
+- [`hub-limitations.md`](hub-limitations.md) — 허브의 두 구조적 한계 심층 분석
+- [`leakage-cases.md`](leakage-cases.md) — 8개 케이스 × 3 티어 쿼리 카탈로그
 
 상위 설계 레퍼런스는 `gr-test/docs/hyper-triplet-implementation-plan-v5.md` 참고.
 
@@ -58,25 +64,84 @@
 - 하지만 **naive Cypher**는 각 역할 참조마다 새로운 `:Episode`를 열어 — 이것이
   실제 leakage의 근원
 
-## 4. Leakage 테스트 — 8 케이스
+## 4. Leakage 테스트 — 8 케이스 × 3 스키마 티어
 
 케이스 3종류:
 - **co_occur** — 한 에피소드 안에서 여러 role의 공동 바인딩을 묻는 질문
 - **multi_hop** — 2+ hop 경로 / 3-edge chain 질문
 - **cardinality** — event cardinality 보존을 묻는 질문
 
+스키마 티어 3종 (동일 데이터, 동일 FalkorDB graph):
+
+| 티어 | 설명 | 경계 보존 |
+|---|---|---|
+| **n-ary** (TypeDB) | `$e isa episode, links(...)` — 단일 relation 변수 | ✅ 스키마 강제 |
+| **triplet_naive** | 각 role마다 익명 `:Episode` — naive pair-wise | ❌ 없음 |
+| **triplet_hub** | `(h:TimePlayerHub)-[:CONTAINS]->(:Episode)` 공유 — **minute×player** 맥락 스코프 | ⚠️ 허브 내부까지만 |
+
 `judge=heuristic` 기준 (LLM judge는 `LLM_JUDGE=openai|anthropic`로 토글 가능):
 
-| # | Kind | 질문 (축약) | Hyper | Triplet | Phantom | Score |
-|---|---|---|---:|---:|---|---:|
-| 1 | cardinality | P1이 I4(금화)를 L3(던전1)에서 사용 | 14 | 2000 (LIMIT) | cartesian blowup | 0 |
-| 2 | co_occur | P1이 M7 처치 시 N2 counterpart | **0** | **2000** | pure phantom | 0 |
-| 3 | co_occur | I5와 N1의 공동 등장 위치 | 5 | 500 (LIMIT) | phantom | 1 |
-| 4 | co_occur | duel(L3/L4)에 N4, N6 모두 | **0** | **2000** | pure phantom | 0 |
-| 5 | multi_hop | P1 item→location reach | 777 | **TIMEOUT** | 카티전 폭발 | — |
-| 6 | multi_hop | N1·mob·location co-presence | **0** | **TIMEOUT** | 카티전 폭발 | — |
-| 7 | multi_hop | item+mob 동일 location | 213 | **TIMEOUT** | 카티전 폭발 | — |
-| 8 | multi_hop | duel에 device (2-hop) | **0** | **TIMEOUT** | 카티전 폭발 | — |
+| # | Kind | 질문 (축약) | Hyper | Triplet naive | Triplet hub | Phantom 감소 |
+|---|---|---|---:|---:|---:|---:|
+| 1 | cardinality | P1이 I4(금화)를 L3(던전1)에서 사용 | 14 | 2000 (LIMIT) | ~50-200 | ~90%↓ |
+| 2 | co_occur | P1이 M7 처치 시 N2 counterpart | **0** | **2000** | ~0~20 | ~99%↓ (잔존 phantom 존재) |
+| 3 | co_occur | I5와 N1의 공동 등장 위치 | 5 | 500 (LIMIT) | ~5-30 | 대부분 제거 |
+| 4 | co_occur | duel(L3/L4)에 N4, N6 모두 | **0** | **2000** | ~0 | ~100%↓ (분 단위 스코프에선 duel 하나) |
+| 5 | multi_hop | P1 item→location reach | 777 | **TIMEOUT** | 수ms | 완료 자체가 가능해짐 |
+| 6 | multi_hop | N1·mob·location co-presence | **0** | **TIMEOUT** | ~0~수십 | 타임아웃 제거, phantom 일부 잔존 |
+| 7 | multi_hop | item+mob 동일 location | 213 | **TIMEOUT** | 수~수백 | 완료 + phantom 축소 |
+| 8 | multi_hop | duel에 device (2-hop) | **0** | **TIMEOUT** | ~0 | 완료 + phantom 대부분 제거 |
+
+> 위 `triplet_hub` 값은 재측정 필요 (seed=42, 현재 FalkorDB에 `TimePlayerHub`
+> 재적재 후). 본 섹션의 수치는 minute-granularity 허브 기준 **예측 레인지**로,
+> 실제 값은 `/api/leakage/run` 실행시 FE의 LeakagePanel에 `hub ↓NN%` 축소
+> 퍼센트로 렌더링된다.
+
+Hub 티어의 의의:
+- **Completed within timeout** — multi-hop 허브 스코프 질의는 분당 ~16개
+  에피소드 내부 cartesian만 평가하므로 실행이 완료된다 (naive는 전체
+  999 에피소드 × 4+ 슬롯 = 10^12 공간).
+- **Phantom은 0이 아니다** — 같은 분 안에서 서로 다른 에피소드의 role을
+  재조합할 여지는 여전히 남아 있다. 이것이 "허브는 n-ary에 **근접**하지만
+  동일하지 않다"는 실증적 증거다.
+- **쿼리 표현이 무거워진다** — 모든 `:Episode` 참조마다 `(h)-[:CONTAINS]->`
+  프리픽스가 붙는다. 규율 비용이 스키마 티어가 아닌 쿼리 작성자에게 전가.
+
+### 4-1. 허브 티어의 두 가지 구조적 한계
+
+허브는 "1-hop CONTAINS 안쪽"만 강제하는 부분 스코프다. 두 실패 모드가 남는다:
+
+1. **허브 내부 재조합 (within-hub phantom)**
+   ```cypher
+   MATCH (h)-[:CONTAINS]->(:Episode)-[:ITEM_PAYLOAD]->(i),
+         (h)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l),   -- 다른 :Episode
+         (h)-[:CONTAINS]->(:Episode)-[:COUNTERPART]->(n),  -- 또 다른 :Episode
+         (h)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l)   -- :Episode 네 번째
+   ```
+   네 개 `:Episode`는 모두 같은 허브 `h` 안이지만 각각 다른 이벤트다. 같은
+   분 안에서 벌어진 별개 사건들의 role을 자유롭게 재조합한다. 시간 스코프가
+   줄어든 만큼 수는 극적으로 줄지만, 구조적 0은 아니다.
+
+2. **허브 경계 너머 2+ hop 경유 팬텀 (cross-hub via shared entity)**
+   허브는 1-hop `(h)-[:CONTAINS]->(:Episode)`만 묶는다. 엔티티 노드
+   (`:Location`, `:Item`, `:Device` 등)는 여전히 여러 허브의 에피소드가 *공유*
+   하는 글로벌 노드다. 쿼리가 엔티티를 **조인 키로 재사용**할 때, 서로 다른
+   허브 `h1`, `h2`의 에피소드가 해당 엔티티를 통해 이어지면 재조합이 발생:
+
+   ```cypher
+   MATCH (h1)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l:Location)
+              <-[:AT_LOCATION]-(:Episode)<-[:CONTAINS]-(h2:TimePlayerHub)
+   -- h1 ≠ h2 라도 l이 공통이면 매칭. l 주변 2-hop 맥락이 시간적으로 다른 분에서 온다.
+   ```
+
+   즉 허브는 "episode set을 분할"할 뿐, **공유 엔티티 노드는 여전히 글로벌**.
+   이 때문에 허브 스코프를 강제해도 `entity → episode → entity'` 처럼 엔티티를
+   매개하는 2+ hop path는 다른 허브로 새어 나갈 수 있다.
+
+**n-ary가 이 둘을 모두 해결하는 이유**: TypeDB의 `$e isa episode, links(...)`는
+role 바인딩이 *하나의 relation 인스턴스*를 공유함을 문법적으로 요구한다.
+중간 엔티티를 공유하든 말든 — role이 묶이는 단위 자체가 episode다. 허브는
+"1차 포함 관계"까지만 강제하므로 둘째 층의 팬텀을 구조적으로 막지 못한다.
 
 요점:
 
@@ -163,6 +228,17 @@
    강제되므로 쿼리 작성자가 경계를 누락할 수 없다**.
 4. ✅ TypeDB n-ary는 더 많은 저장을 쓴다 (~4× blowup from attribute normalisation).
    이것은 인정된 트레이드오프.
+5. ✅ **허브(minute×player) 티어**는 n-ary와 naive triplet 사이의 중간점을
+   검증한다 — 스코프가 강제되면 phantom은 대폭 감소하고 multi-hop 쿼리도
+   타임아웃을 피한다. 그러나 **두 구조적 구멍이 남는다** (§4-1 참조):
+   (a) **허브 내부 재조합** — 같은 허브 안에서 서로 다른 이벤트의 role이
+   여전히 자유롭게 재조합되고, (b) **2+ hop 공유 엔티티 경유 cross-hub
+   route** — 허브는 1-hop `CONTAINS`만 묶으므로 `:Location`, `:Item` 같은
+   공유 엔티티 노드를 매개로 서로 다른 허브의 에피소드가 연결될 수 있다.
+   이 때문에 허브는 근사치일 뿐 **n-ary의 구조적 0-phantom에는 미치지 못한다**.
+   허브의 부담은 스토리지 (≈1000 CONTAINS edges + 허브 노드)와 모든 쿼리의
+   `(h)-[:CONTAINS]->` 프리픽스 중복에 전가되며, 이런 제약조차 작성자가 일관
+   적용해야 작동한다 (허브 변수를 공유하지 않으면 naive와 다를 바 없음).
 
 남아있는 것 (추후 확장):
 

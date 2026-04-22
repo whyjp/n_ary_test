@@ -6,9 +6,22 @@
 // Episode nodes; every role binding becomes a typed edge from the Episode
 // node to the participating entity node.
 //
-// Result per 1,000 mock episodes:
-//   nodes = 37 entities + 999 Episode nodes = 1,036
-//   edges ≈ 3,553 role edges (one per role binding — NOT deduplicated)
+// Additionally emits a `TimePlayerHub` tier — a third schema between raw
+// pair-wise and full n-ary. Each (minute_bucket, player_id) combo becomes a
+// first-class hub node that CONTAINS the episodes inside its 1-minute
+// window. Naive Cypher can force a shared hub variable to scope role
+// references into one time+player context — reducing but not eliminating
+// phantom. Two structural holes remain (see docs/README.md §4-1):
+//   (a) within-hub phantom — distinct anonymous :Episodes under the same h
+//       can still recombine.
+//   (b) cross-hub phantom via 2+hop shared entity — the hub only binds
+//       1-hop :Episode membership; shared entities (:Location, :Item, ...)
+//       remain global, so a path entity→episode→entity' can bridge two
+//       hubs through an intermediate entity that is NOT 1-hop from any hub.
+//
+// Result per 1,000 mock episodes (1 player, ~60 minute buckets):
+//   nodes = 37 entities + 999 Episode nodes + ~60 Hub nodes ≈ 1,096
+//   edges ≈ 3,553 role edges + 999 CONTAINS edges ≈ 4,552
 //
 // The leakage cases then exercise the classic pair-wise pitfall: a Cypher
 // query that forgets to constrain all role references to the SAME Episode
@@ -23,6 +36,8 @@ export interface CypherStats {
   uniqueEdges: number;
   nodes: number;
   byRelation: Record<string, number>;
+  hubs: number;
+  containsEdges: number;
 }
 
 function q(s: string): string {
@@ -49,7 +64,7 @@ export function buildCypher(ds: Dataset): {
   edgeQueries: string[];
   stats: CypherStats;
 } {
-  const stats: CypherStats = { uniqueEdges: 0, nodes: 0, byRelation: {} };
+  const stats: CypherStats = { uniqueEdges: 0, nodes: 0, byRelation: {}, hubs: 0, containsEdges: 0 };
   const nodeQueries: string[] = [];
 
   const addNode = (label: string, id: string, props: Record<string, string | number | boolean>) => {
@@ -89,6 +104,31 @@ export function buildCypher(ds: Dataset): {
     });
   }
 
+  // TimePlayerHub — one node per (minute_bucket, actor_player_id). First-
+  // class grouping tier: CONTAINS edges point Hub → Episode so a hub-scoped
+  // Cypher query can force all :Episode references into the same 1-minute
+  // time+player context. Phantom reduces to within-hub only (not eliminated).
+  // Minute granularity is chosen to match the visualization's 1-min planes
+  // and to keep multi-hop cartesians tractable (≈16 eps/hub vs 500 at hour).
+  const hubSeen = new Set<string>();
+  const hubOf = (ep: (typeof ds.episodes)[number]): string | null => {
+    const actor = ep.roles.find((r) => r.role === "actor");
+    if (!actor || actor.entity_kind !== "player") return null;
+    return `hub-m${ep.minute_bucket}-${actor.entity_id}`;
+  };
+  for (const ep of ds.episodes) {
+    const hubId = hubOf(ep);
+    if (!hubId || hubSeen.has(hubId)) continue;
+    hubSeen.add(hubId);
+    const actor = ep.roles.find((r) => r.role === "actor")!;
+    addNode("TimePlayerHub", hubId, {
+      minute_bucket: ep.minute_bucket,
+      hour_bucket: ep.hour_bucket,
+      player_id: actor.entity_id,
+    });
+    stats.hubs++;
+  }
+
   // Role edges Episode → Entity. NO dedup — a role binding that repeats
   // across episodes gets a fresh edge each time, matching TypeDB's per-
   // episode role instance count.
@@ -107,6 +147,17 @@ export function buildCypher(ds: Dataset): {
 
   for (const ep of ds.episodes) {
     for (const r of ep.roles) edge(r.role, ep.ns_id, r.entity_kind, r.entity_id);
+  }
+
+  // Hub CONTAINS Episode edges.
+  for (const ep of ds.episodes) {
+    const hubId = hubOf(ep);
+    if (!hubId) continue;
+    edgeQueries.push(
+      `MATCH (h:TimePlayerHub {id: '${q(hubId)}'}), (e:Episode {id: '${q(ep.ns_id)}'}) ` +
+      `CREATE (h)-[:CONTAINS]->(e)`,
+    );
+    stats.containsEdges++;
   }
 
   return { nodeQueries, edgeQueries, stats };

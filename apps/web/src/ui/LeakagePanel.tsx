@@ -15,8 +15,11 @@ interface CaseResult {
   kind: "co_occur" | "multi_hop" | "cardinality";
   hyper: { tql: string; count: number; ns_ids: string[]; error?: string };
   triplet: { cypher: string; count: number; error?: string };
+  triplet_hub: { cypher: string; count: number; error?: string };
   phantom: boolean;
   ratio: string;
+  hub_ratio: string;
+  hub_reduction_pct: number;
   verdict?: Verdict;
 }
 
@@ -25,7 +28,9 @@ interface LeakageReport {
   falkor_available: boolean;
   total_hyper: number;
   total_triplet: number;
+  total_triplet_hub: number;
   total_phantom: number;
+  total_phantom_hub: number;
   avg_score: number;
   judge: "heuristic" | "openai" | "anthropic";
   cases: CaseResult[];
@@ -68,9 +73,11 @@ export function LeakagePanel({ onHighlight }: Props) {
         cases: report.cases.map((c) => (c.id === id ? (fresh as CaseResult) : c)),
       };
       // recompute totals
-      updated.total_hyper   = updated.cases.reduce((a, c) => a + c.hyper.count, 0);
-      updated.total_triplet = updated.cases.reduce((a, c) => a + c.triplet.count, 0);
-      updated.total_phantom = updated.cases.filter((c) => c.phantom).reduce((a, c) => a + c.triplet.count, 0);
+      updated.total_hyper       = updated.cases.reduce((a, c) => a + c.hyper.count, 0);
+      updated.total_triplet     = updated.cases.reduce((a, c) => a + c.triplet.count, 0);
+      updated.total_triplet_hub = updated.cases.reduce((a, c) => a + c.triplet_hub.count, 0);
+      updated.total_phantom     = updated.cases.filter((c) => c.phantom).reduce((a, c) => a + c.triplet.count, 0);
+      updated.total_phantom_hub = updated.cases.filter((c) => c.hyper.count === 0 && c.triplet_hub.count > 0).reduce((a, c) => a + c.triplet_hub.count, 0);
       const scores = updated.cases.map((c) => c.verdict?.score ?? 0);
       updated.avg_score = scores.length ? Math.round(scores.reduce((a, x) => a + x, 0) / scores.length) : 0;
       setReport(updated);
@@ -109,7 +116,9 @@ export function LeakagePanel({ onHighlight }: Props) {
           <div className="leakage-totals">
             <div>hyperedge <b>{report.total_hyper}</b></div>
             <div>triplet <b>{report.total_triplet}</b></div>
+            <div title="minute×player hub-scoped triplet">triplet_hub <b style={{ color: "var(--accent-purple)" }}>{report.total_triplet_hub}</b></div>
             <div>phantom <b style={{ color: "var(--accent-red)" }}>{report.total_phantom}</b></div>
+            <div title="phantoms surviving after hub constraint">phantom_hub <b style={{ color: "var(--accent-red)" }}>{report.total_phantom_hub}</b></div>
             <div>score <b style={{ color: report.avg_score >= 70 ? "var(--accent-nary)" : "var(--accent-red)" }}>{report.avg_score}/100</b></div>
             <div style={{ fontSize: 9, letterSpacing: "0.14em", color: "var(--text-faint)" }}>judge: {report.judge}</div>
           </div>
@@ -133,7 +142,17 @@ export function LeakagePanel({ onHighlight }: Props) {
                 </div>
                 <div className="leakage-case-counts">
                   <span title="TypeDB n-ary hyperedge">n-ary <b>{c.hyper.count}</b></span>
-                  <span title="FalkorDB triplet">triplet <b>{c.triplet.count}</b></span>
+                  <span title="FalkorDB raw pair-wise triplet (no context scope)">triplet <b>{c.triplet.count}</b></span>
+                  <span title="FalkorDB (minute×player)-hub-scoped triplet"
+                        style={{ color: "var(--accent-purple)" }}>
+                    triplet_hub <b>{c.triplet_hub?.count ?? 0}</b>
+                  </span>
+                  {(c.hub_reduction_pct ?? 0) !== 0 && (
+                    <span title="% of naive-triplet phantom eliminated by hub scope"
+                          className={"reduction-chip reduction-" + (c.hub_reduction_pct >= 80 ? "ok" : c.hub_reduction_pct >= 30 ? "warn" : "bad")}>
+                      hub ↓{c.hub_reduction_pct}%
+                    </span>
+                  )}
                   <span title="triplet / hyperedge">ratio <b>{c.ratio}×</b></span>
                   {c.verdict && (
                     <span title={c.verdict.rule_verdict}

@@ -16,13 +16,18 @@ export function InfographicBar() {
 
   if (!info) return <div className="infograph-bar loading">collecting benchmark…</div>;
 
-  const { typedb, falkor, leakage } = info;
-  const totalEdges = Math.max(typedb.episodes, falkor.edges, 1);
-  const hyperPct = (typedb.episodes / totalEdges) * 100;
-  const tripletPct = (falkor.edges / totalEdges) * 100;
+  const typedb = info.typedb ?? { alive: false, database: "—", episodes: 0, entities: 0, cross_minute: 0, cross_hour: 0, window: null };
+  const falkor = info.falkor ?? { alive: false, graph: "—", nodes: 0, edges: 0 };
+  const leakage = info.leakage ?? null;
+  const relCounts = info.relation_counts ?? {};
+  const episodes = typedb.episodes ?? 0;
+  const edges    = falkor.edges ?? 0;
+  const totalEdges = Math.max(episodes, edges, 1);
+  const hyperPct   = (episodes / totalEdges) * 100;
+  const tripletPct = (edges / totalEdges) * 100;
 
   // Dominant relation type, for the sparkline-ish display
-  const topRelations = Object.entries(info.relation_counts)
+  const topRelations = Object.entries(relCounts)
     .sort((a, b) => b[1] - a[1]).slice(0, 6);
 
   return (
@@ -39,11 +44,11 @@ export function InfographicBar() {
             <span className="db-label">TypeDB</span>
             <span className="db-schema">n-ary relation</span>
           </div>
-          <div className="db-primary">{typedb.episodes.toLocaleString()}<span className="unit">episodes</span></div>
+          <div className="db-primary">{episodes.toLocaleString()}<span className="unit">episodes</span></div>
           <div className="db-sub">
-            <span>entities <b>{typedb.entities}</b></span>
-            <span>×min <b>{typedb.cross_minute}</b></span>
-            <span>×hour <b>{typedb.cross_hour}</b></span>
+            <span>entities <b>{typedb.entities ?? 0}</b></span>
+            <span>×min <b>{typedb.cross_minute ?? 0}</b></span>
+            <span>×hour <b>{typedb.cross_hour ?? 0}</b></span>
           </div>
           <div className="db-db">db: <code>{typedb.database}</code></div>
         </div>
@@ -85,9 +90,9 @@ export function InfographicBar() {
             <span className="db-label">FalkorDB</span>
             <span className="db-schema">pair-wise triplet</span>
           </div>
-          <div className="db-primary">{falkor.edges.toLocaleString()}<span className="unit">edges</span></div>
+          <div className="db-primary">{edges.toLocaleString()}<span className="unit">edges</span></div>
           <div className="db-sub">
-            <span>nodes <b>{falkor.nodes}</b></span>
+            <span>nodes <b>{falkor.nodes ?? 0}</b></span>
             <span>no episode id</span>
           </div>
           <div className="db-db">graph: <code>{falkor.graph}</code></div>

@@ -30,10 +30,11 @@ async function main() {
   }
 
   const { nodeQueries, edgeQueries, stats } = buildCypher(ds);
-  console.log(`[falkor] nodes=${stats.nodes}  unique-edges=${stats.uniqueEdges}`);
+  console.log(`[falkor] nodes=${stats.nodes}  unique-edges=${stats.uniqueEdges}  hubs=${stats.hubs}  contains=${stats.containsEdges}`);
   for (const [rel, n] of Object.entries(stats.byRelation)) {
     console.log(`          ${rel.padEnd(26)} ${n}`);
   }
+  console.log(`          ${"CONTAINS".padEnd(26)} ${stats.containsEdges}`);
 
   // Push in batches — multiple statements are allowed per GRAPH.QUERY when
   // joined with a semicolon; but FalkorDB prefers one statement per call so

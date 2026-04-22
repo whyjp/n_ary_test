@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Stars, Html } from "@react-three/drei";
+import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 
 import type { EntityKind } from "../types";
@@ -105,8 +105,6 @@ export function FalkorScene({ nodeScale }: Props) {
       <ambientLight color={0x404050} intensity={0.7} />
       <pointLight color={0xffb347} intensity={1.0} distance={120} position={[12, 18, 10]} />
       <pointLight color={0x2de8c8} intensity={0.6} distance={100} position={[-12, -4, -12]} />
-
-      <Stars radius={80} depth={40} count={700} factor={3} fade speed={0.3} />
 
       {/* A single grounding ring — visually reinforces "no time axis". */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, layerY, 0]}>

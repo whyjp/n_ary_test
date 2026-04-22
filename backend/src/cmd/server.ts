@@ -146,7 +146,9 @@ Bun.serve({
           cases: leakage.cases.length,
           total_hyper: leakage.total_hyper,
           total_triplet: leakage.total_triplet,
+          total_triplet_hub: leakage.total_triplet_hub,
           total_phantom: leakage.total_phantom,
+          total_phantom_hub: leakage.total_phantom_hub,
           phantom_cases: leakage.cases.filter((c) => c.phantom).length,
         } : null,
       });

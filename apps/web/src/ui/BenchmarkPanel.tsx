@@ -60,8 +60,11 @@ export function BenchmarkPanel() {
           <div className="bench-latency">
             <div className="bench-storage-head">query latency (median ms, {report.iterations} iter)</div>
             {report.latency.map((l) => {
-              const hyperPct = Math.min(100, (l.hyper_ms_median / Math.max(l.hyper_ms_median, l.triplet_ms_median, 1)) * 100);
-              const tripletPct = Math.min(100, (l.triplet_ms_median / Math.max(l.hyper_ms_median, l.triplet_ms_median, 1)) * 100);
+              const hubMs = l.triplet_hub_ms_median ?? 0;
+              const peak = Math.max(l.hyper_ms_median, l.triplet_ms_median, hubMs, 1);
+              const hyperPct = Math.min(100, (l.hyper_ms_median / peak) * 100);
+              const tripletPct = Math.min(100, (l.triplet_ms_median / peak) * 100);
+              const hubPct = Math.min(100, (hubMs / peak) * 100);
               return (
                 <div key={l.id} className="bench-lat-case">
                   <div className="bench-lat-title">
@@ -78,12 +81,18 @@ export function BenchmarkPanel() {
                     <div className="bar"><div className="bar-fill triplet" style={{ width: `${tripletPct}%` }} /></div>
                     <span className="bar-val">{l.triplet_ms_median.toFixed(1)}ms</span>
                   </div>
+                  <div className="bench-row" title="minute×player hub-scoped triplet">
+                    <span className="bar-label">hub</span>
+                    <div className="bar"><div className="bar-fill hub" style={{ width: `${hubPct}%` }} /></div>
+                    <span className="bar-val">{hubMs.toFixed(1)}ms</span>
+                  </div>
                 </div>
               );
             })}
             <div className="bench-blowup">
               overall median · hyper <b>{report.totals.hyper_ms_median}ms</b>
               {" · "}triplet <b>{report.totals.triplet_ms_median}ms</b>
+              {" · "}hub <b>{(report.totals.triplet_hub_ms_median ?? 0)}ms</b>
             </div>
           </div>
 

@@ -28,6 +28,13 @@ export interface LeakageCase {
   note: string;
   hyper: string;
   triplet: string;
+  // Hub-scoped variant. Same naive pair-wise pattern, but every :Episode
+  // reference is required to belong to the SAME (hour × player) hub. This
+  // demonstrates the middle tier: context-scoped triplet — phantoms reduce
+  // from "across all episodes" to "within one hub" but remain non-zero
+  // because distinct :Episode nodes within the hub can still be freely
+  // recombined (no per-event identity enforcement at the schema level).
+  triplet_hub: string;
   kind: "co_occur" | "multi_hop" | "cardinality";
 }
 
@@ -49,6 +56,11 @@ select $ns;`,
              (:Episode)-[:AT_LOCATION]->(l:Location {id:"L3"})
        RETURN p, i, l
        LIMIT 2000`,
+    triplet_hub: `MATCH (h:TimePlayerHub {player_id:"P1"})-[:CONTAINS]->(:Episode)-[:ACTOR]->(p:Player {id:"P1"}),
+             (h)-[:CONTAINS]->(:Episode)-[:ITEM_PAYLOAD]->(i:Item {id:"I4"}),
+             (h)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l:Location {id:"L3"})
+       RETURN p, i, l
+       LIMIT 2000`,
   },
 
   {
@@ -66,6 +78,11 @@ select $ns;`,
     triplet: `MATCH (:Episode)-[:ACTOR]->(p:Player {id:"P1"}),
              (:Episode)-[:MOB_TARGET]->(m:Mob {id:"M7"}),
              (:Episode)-[:COUNTERPART]->(n:NPC {id:"N2"})
+       RETURN p, m, n
+       LIMIT 2000`,
+    triplet_hub: `MATCH (h:TimePlayerHub {player_id:"P1"})-[:CONTAINS]->(:Episode)-[:ACTOR]->(p:Player {id:"P1"}),
+             (h)-[:CONTAINS]->(:Episode)-[:MOB_TARGET]->(m:Mob {id:"M7"}),
+             (h)-[:CONTAINS]->(:Episode)-[:COUNTERPART]->(n:NPC {id:"N2"})
        RETURN p, m, n
        LIMIT 2000`,
   },
@@ -86,6 +103,12 @@ select $ns;`,
              (:Episode)-[:AT_LOCATION]->(l:Location),
              (:Episode)-[:COUNTERPART]->(n:NPC {id:"N1"}),
              (:Episode)-[:AT_LOCATION]->(l)
+       RETURN DISTINCT l
+       LIMIT 500`,
+    triplet_hub: `MATCH (h:TimePlayerHub {player_id:"P1"})-[:CONTAINS]->(:Episode)-[:ITEM_PAYLOAD]->(i:Item {id:"I5"}),
+             (h)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l:Location),
+             (h)-[:CONTAINS]->(:Episode)-[:COUNTERPART]->(n:NPC {id:"N1"}),
+             (h)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l)
        RETURN DISTINCT l
        LIMIT 500`,
   },
@@ -112,6 +135,13 @@ select $ns;`,
        WHERE l.id IN ["L3","L4"]
        RETURN p, n1, n2, l
        LIMIT 2000`,
+    triplet_hub: `MATCH (h:TimePlayerHub {player_id:"P1"})-[:CONTAINS]->(:Episode {relation_type:"duel"})-[:ACTOR]->(p:Player {id:"P1"}),
+             (h)-[:CONTAINS]->(:Episode {relation_type:"duel"})-[:COUNTERPART]->(n1:NPC {id:"N4"}),
+             (h)-[:CONTAINS]->(:Episode {relation_type:"duel"})-[:COUNTERPART]->(n2:NPC {id:"N6"}),
+             (h)-[:CONTAINS]->(:Episode {relation_type:"duel"})-[:AT_LOCATION]->(l:Location)
+       WHERE l.id IN ["L3","L4"]
+       RETURN p, n1, n2, l
+       LIMIT 2000`,
   },
 
   {
@@ -130,6 +160,12 @@ select $ns;`,
              (:Episode)-[:ITEM_PAYLOAD]->(i:Item),
              (:Episode)-[:ITEM_PAYLOAD]->(i),
              (:Episode)-[:AT_LOCATION]->(l:Location)
+       RETURN DISTINCT p, i, l
+       LIMIT 2000`,
+    triplet_hub: `MATCH (h:TimePlayerHub {player_id:"P1"})-[:CONTAINS]->(:Episode)-[:ACTOR]->(p:Player {id:"P1"}),
+             (h)-[:CONTAINS]->(:Episode)-[:ITEM_PAYLOAD]->(i:Item),
+             (h)-[:CONTAINS]->(:Episode)-[:ITEM_PAYLOAD]->(i),
+             (h)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l:Location)
        RETURN DISTINCT p, i, l
        LIMIT 2000`,
   },
@@ -153,6 +189,14 @@ select $ns;`,
              (:Episode)-[:AT_LOCATION]->(l),
              (:Episode)-[:ACTOR]->(p:Player {id:"P1"}),
              (:Episode)-[:MOB_TARGET]->(m)
+       RETURN DISTINCT p, n, m, l
+       LIMIT 2000`,
+    triplet_hub: `MATCH (h:TimePlayerHub {player_id:"P1"})-[:CONTAINS]->(:Episode)-[:COUNTERPART]->(n:NPC {id:"N1"}),
+             (h)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l:Location),
+             (h)-[:CONTAINS]->(:Episode)-[:MOB_TARGET]->(m:Mob),
+             (h)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l),
+             (h)-[:CONTAINS]->(:Episode)-[:ACTOR]->(p:Player {id:"P1"}),
+             (h)-[:CONTAINS]->(:Episode)-[:MOB_TARGET]->(m)
        RETURN DISTINCT p, n, m, l
        LIMIT 2000`,
   },
@@ -179,6 +223,15 @@ select $ns;`,
              (:Episode)-[:MOB_TARGET]->(m)
        RETURN DISTINCT p, i, m, l
        LIMIT 2000`,
+    triplet_hub: `MATCH (h:TimePlayerHub {player_id:"P1"})-[:CONTAINS]->(:Episode)-[:ACTOR]->(p:Player {id:"P1"}),
+             (h)-[:CONTAINS]->(:Episode)-[:ITEM_PAYLOAD]->(i:Item),
+             (h)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l:Location),
+             (h)-[:CONTAINS]->(:Episode)-[:ITEM_PAYLOAD]->(i),
+             (h)-[:CONTAINS]->(:Episode)-[:MOB_TARGET]->(m:Mob),
+             (h)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l),
+             (h)-[:CONTAINS]->(:Episode)-[:MOB_TARGET]->(m)
+       RETURN DISTINCT p, i, m, l
+       LIMIT 2000`,
   },
 
   {
@@ -200,6 +253,13 @@ select $ns;`,
              (:Episode {relation_type:"duel"})-[:AT_LOCATION]->(l:Location),
              (:Episode)-[:VIA_DEVICE]->(d:Device),
              (:Episode)-[:AT_LOCATION]->(l)
+       RETURN DISTINCT p, n, d, l
+       LIMIT 2000`,
+    triplet_hub: `MATCH (h:TimePlayerHub {player_id:"P1"})-[:CONTAINS]->(:Episode {relation_type:"duel"})-[:ACTOR]->(p:Player {id:"P1"}),
+             (h)-[:CONTAINS]->(:Episode {relation_type:"duel"})-[:COUNTERPART]->(n:NPC),
+             (h)-[:CONTAINS]->(:Episode {relation_type:"duel"})-[:AT_LOCATION]->(l:Location),
+             (h)-[:CONTAINS]->(:Episode)-[:VIA_DEVICE]->(d:Device),
+             (h)-[:CONTAINS]->(:Episode)-[:AT_LOCATION]->(l)
        RETURN DISTINCT p, n, d, l
        LIMIT 2000`,
   },
