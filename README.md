@@ -1,5 +1,8 @@
 # n_ary_test — n-ary 하이퍼엣지로 Cross-episode Leakage를 막는다
 
+> 📊 누적된 실험 수치는 [docs/README.md](./docs/README.md)에 통합 정리되어
+> 있다. 아래는 저장소 전체의 설계·실행 안내.
+
 > **핵심 주장 (single thesis):**
 >
 > Pair-wise 엣지 기반 속성 그래프는 사건들을 공통 엔티티로 이어붙이는 과정에서
