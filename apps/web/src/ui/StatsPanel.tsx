@@ -4,7 +4,7 @@ interface Props {
   dataset: Dataset;
   filters: Filters;
   typedbAvailable: boolean | null;
-  dataSource: "typedb" | "fallback" | "none" | null;
+  dataSource: "typedb" | "none" | null;
   onRefresh: () => void;
 }
 
@@ -72,9 +72,7 @@ export function StatsPanel({ dataset, filters, typedbAvailable, dataSource, onRe
       <div className="row">
         <span className="k">Data source</span>
         <span className="v" style={{
-          color: dataSource === "typedb" ? "var(--accent-nary)"
-            : dataSource === "fallback" ? "var(--accent-pg)"
-            : "var(--accent-red)",
+          color: dataSource === "typedb" ? "var(--accent-nary)" : "var(--accent-red)",
         }}>
           {dataSource ?? "—"}
         </span>

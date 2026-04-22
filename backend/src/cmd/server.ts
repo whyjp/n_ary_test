@@ -1,12 +1,11 @@
 // REST API server — TypeDB is the sole source of truth for episodes.
-// The server fetches the whole dataset at startup (and on /api/refresh) via
-// the typedb-driver, caches it in memory, and serves it to the web viz.
+// There is NO local-file fallback. If TypeDB is unreachable or the database
+// hasn't been loaded yet, the API returns 503 and the web viz displays an
+// explicit offline state.
 //
 //   bun run backend/src/cmd/server.ts
 //   bun run backend/src/cmd/server.ts --port 5174
 
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import type { Dataset, Episode } from "../domain/types.ts";
 import { fetchDataset, runReadQuery, ping } from "../typedb/client.ts";
 import { translateAndRun } from "../narrative/translate.ts";
@@ -18,35 +17,28 @@ function flag(name: string, fallback: string): string {
 }
 
 const PORT = Number(flag("--port", process.env.PORT ?? "5174"));
-// Fallback: when TypeDB is offline, load the last-generated snapshot from disk
-// so the dev UX isn't destroyed. Data source is reported on /api/health.
-const FALLBACK = flag("--fallback-json", path.resolve("out/episodes.json"));
 
-let cache: { source: "typedb" | "fallback" | "none"; dataset: Dataset | null; loadedAt: number } = {
-  source: "none", dataset: null, loadedAt: 0,
+// The server keeps an in-memory cache of the dataset but the cache is ALWAYS
+// sourced from TypeDB. If TypeDB is unreachable the cache stays empty and
+// /api/episodes returns 503 — no local-file fallback.
+let cache: { source: "typedb" | "none"; dataset: Dataset | null; loadedAt: number; lastError: string | null } = {
+  source: "none", dataset: null, loadedAt: 0, lastError: null,
 };
 
 async function refreshCache(): Promise<void> {
   const alive = await ping();
-  if (alive) {
-    try {
-      const ds = await fetchDataset();
-      cache = { source: "typedb", dataset: ds, loadedAt: Date.now() };
-      console.log(`[refresh] loaded ${ds.episodes.length} episodes from TypeDB`);
-      return;
-    } catch (err) {
-      console.warn(`[refresh] TypeDB read failed: ${err}`);
-    }
+  if (!alive) {
+    cache = { source: "none", dataset: null, loadedAt: Date.now(), lastError: "TypeDB not reachable" };
+    console.warn(`[refresh] TypeDB not reachable — dataset cache remains empty`);
+    return;
   }
-  // Fallback to the generated snapshot so we don't hard-fail in dev.
   try {
-    const raw = await readFile(FALLBACK, "utf8");
-    const ds = JSON.parse(raw) as Dataset;
-    cache = { source: "fallback", dataset: ds, loadedAt: Date.now() };
-    console.log(`[refresh] fallback — loaded ${ds.episodes.length} episodes from ${FALLBACK}`);
+    const ds = await fetchDataset();
+    cache = { source: "typedb", dataset: ds, loadedAt: Date.now(), lastError: null };
+    console.log(`[refresh] loaded ${ds.episodes.length} episodes from TypeDB`);
   } catch (err) {
-    cache = { source: "none", dataset: null, loadedAt: Date.now() };
-    console.warn(`[refresh] no fallback available: ${err}`);
+    cache = { source: "none", dataset: null, loadedAt: Date.now(), lastError: String(err) };
+    console.warn(`[refresh] TypeDB read failed — dataset cache cleared: ${err}`);
   }
 }
 
@@ -92,11 +84,12 @@ Bun.serve({
     if (url.pathname === "/api/health") {
       const alive = await ping();
       return json({
-        ok: true,
+        ok: cache.source === "typedb" && alive,
         episodes: cache.dataset?.episodes.length ?? 0,
         typedb_available: alive,
         data_source: cache.source,
         loaded_at: cache.loadedAt,
+        last_error: cache.lastError,
         window: cache.dataset ? { start: cache.dataset.window_start, end: cache.dataset.window_end } : null,
       });
     }
@@ -106,7 +99,12 @@ Bun.serve({
       return json({ ok: true, data_source: cache.source, episodes: cache.dataset?.episodes.length ?? 0 });
     }
 
-    if (!cache.dataset) return json({ error: "no_data", hint: "start TypeDB + run mockgen + typedb-load, then POST /api/refresh" }, 503);
+    if (!cache.dataset) return json({
+      error: "no_data_in_typedb",
+      typedb_available: await ping(),
+      last_error: cache.lastError,
+      hint: "bash scripts/typedb-up.sh && bun run src/cmd/mockgen.ts && bun run src/cmd/load.ts --reset, then POST /api/refresh",
+    }, 503);
 
     if (url.pathname === "/api/episodes") return json(cache.dataset);
 

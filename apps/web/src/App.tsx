@@ -20,7 +20,7 @@ export function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("hour");
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
   const [typedbAvailable, setTypedbAvailable] = useState<boolean | null>(null);
-  const [dataSource, setDataSource] = useState<"typedb" | "fallback" | "none" | null>(null);
+  const [dataSource, setDataSource] = useState<"typedb" | "none" | null>(null);
   const [spacingMult, setSpacingMult] = useState(1);
   const [nodeScale, setNodeScale] = useState(0.9);
   const [highlightNsIds, setHighlightNsIds] = useState<Set<string> | null>(null);
@@ -50,10 +50,33 @@ export function App() {
 
   if (err) {
     return (
-      <div className="app" style={{ padding: 40, color: "var(--accent-red)" }}>
-        <h2>Failed to load dataset</h2>
-        <pre>{err}</pre>
-        <p>Run <code>bun run backend/src/cmd/mockgen.ts</code> then <code>bun run backend/src/cmd/server.ts</code>.</p>
+      <div className="app error-state">
+        <div style={{ maxWidth: 640 }}>
+          <div className="eyebrow" style={{ color: "var(--accent-red)" }}>
+            typedb offline · no local fallback
+          </div>
+          <h2 style={{ fontFamily: "var(--display)", fontWeight: 300, fontSize: 34, margin: "14px 0 18px" }}>
+            데이터는 <em style={{ color: "var(--accent-nary)", fontStyle: "italic" }}>TypeDB</em>에서만 읽습니다.
+          </h2>
+          <pre style={{
+            fontFamily: "var(--mono)", fontSize: 12, whiteSpace: "pre-wrap",
+            background: "rgba(255,107,107,0.08)", border: "0.5px solid rgba(255,107,107,0.4)",
+            padding: 14, color: "var(--text)",
+          }}>{err}</pre>
+          <div style={{ marginTop: 22, color: "var(--text-dim)", fontSize: 13, lineHeight: 1.6 }}>
+            복구 순서 (WSL 별도 터미널):
+            <ol style={{ paddingLeft: 20, marginTop: 10 }}>
+              <li><code>bash scripts/typedb-up.sh</code></li>
+              <li><code>cd backend &amp;&amp; bun run src/cmd/mockgen.ts</code></li>
+              <li><code>bun run src/cmd/load.ts --reset</code></li>
+              <li><code>bun run src/cmd/load-falkor.ts --reset</code></li>
+              <li>페이지 새로고침</li>
+            </ol>
+          </div>
+          <button className="filter-btn" style={{ marginTop: 20 }} onClick={() => { setErr(null); void loadAll(); }}>
+            다시 시도
+          </button>
+        </div>
       </div>
     );
   }

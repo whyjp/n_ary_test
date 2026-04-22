@@ -2,6 +2,13 @@ import type { Dataset } from "./types";
 
 export async function fetchDataset(): Promise<Dataset> {
   const res = await fetch("/api/episodes");
+  if (res.status === 503) {
+    const body = await res.json() as { error: string; last_error?: string; hint?: string };
+    throw new Error(
+      `TypeDB unavailable — ${body.last_error ?? body.error}` +
+      (body.hint ? `\n\n${body.hint}` : ""),
+    );
+  }
   if (!res.ok) throw new Error(`GET /api/episodes -> ${res.status}`);
   return (await res.json()) as Dataset;
 }
@@ -10,7 +17,8 @@ export async function fetchHealth(): Promise<{
   ok: boolean;
   episodes: number;
   typedb_available: boolean;
-  data_source: "typedb" | "fallback" | "none";
+  data_source: "typedb" | "none";
+  last_error: string | null;
 }> {
   const res = await fetch("/api/health");
   return await res.json();
