@@ -182,6 +182,62 @@ bun run dev                        # http://localhost:5173 (/api 프록시됨)
 | `POST /api/narrative` `{ question }` | 자연어 → EpisodeFilter → 서사 + TypeQL 미리보기 |
 | `POST /api/refresh` | TypeDB에서 dataset 재 pull |
 
+## 실증 주장 — Cross-episode leakage 방지
+
+이 저장소의 핵심 테스트 명제:
+
+> Pair-wise 엣지 기반 속성 그래프는 "사건의 엣지"가 dedupe 되면서 서로 다른
+> 에피소드의 맥락이 traversal 단계에서 재조합되어 **실제로 일어나지 않은
+> 사건 조합을 유효 경로로 반환**한다.  TypeDB의 **n-ary relation = 에피소드
+> 경계 그 자체**가 이 leakage를 엣지·노드 복제 없이 방지한다.
+
+### 대조군: FalkorDB 삼중항(triplet) 베이스라인
+
+동일한 1,000 에피소드를 두 저장소에 적재:
+
+| 저장소 | 모델 | 결과 |
+|---|---|---|
+| `n_ary` (TypeDB 3.10) | n-ary `episode` relation, 각 에피소드 = 하나의 하이퍼엣지 | 1,000 relation instance |
+| `n_ary_triplet` (FalkorDB) | 8종의 pair-wise 엣지 타입 (`USED_ITEM`, `ITEM_AT_LOCATION`, ...) | 37 노드 · **204** 고유 엣지 (삼중항 dedupe 효과) |
+
+### 4-케이스 leakage 테스트 결과
+
+`bun run backend/src/cmd/leakage-test.ts` 실행:
+
+```
+Case 1 · P1이 I4(금화)를 L3(던전1)에서 사용
+  hyperedge=14   triplet=1    → n-ary는 이벤트 카디널리티 보존, triplet은 dedupe로 1
+Case 2 · P1이 M7(드래곤새끼) 처치하며 N2(퀘스트주인) 동반?
+  hyperedge=0    triplet=1    ⚠ phantom — 실제로 함께 나타난 적 없음
+Case 3 · I5(보석)와 N1(상인)의 공동 등장 위치
+  hyperedge=5    triplet=6    → 1개 위치가 실제 co-occurrence 아님
+Case 4 · 듀얼에 N4, N6 모두 참여
+  hyperedge=0    triplet=2    ⚠ phantom — 듀얼은 counterpart 1명인데 triplet이 2개 별도 듀얼 결합
+------------------------------------------------------------------------
+totals  hyperedge=19  triplet=10  phantom=3
+```
+
+- **Case 2/4는 삼중항 그래프의 cross-episode leakage 그 자체** — 서로 다른
+  에피소드에서 발생한 개별 엣지가 traversal 단계에서 결합되어 실제로
+  일어나지 않은 "사건 조합"을 반환합니다.
+- TypeDB의 `episode` relation은 `(actor: $p, counterpart: $n1, counterpart:
+  $n2, at_location: $l, mob_target: $m)` 같은 n-ary role 바인딩으로
+  **경계를 스키마 수준에서 강제**하므로 phantom이 원천적으로 생성되지 않습니다.
+- 삼중항 그래프에서 같은 품질을 얻으려면 매 엣지에 `episode_id`를 태깅하고
+  매 쿼리에 JOIN을 거는 복제 기반 모델이 필요 — **엣지 수가 에피소드 롤-쌍
+  총수만큼 폭발하고 쿼리 비용도 증가**합니다. 이것이 하이퍼엣지 모델이
+  해결하는 저장·성능 트레이드오프.
+
+### 재현 순서
+
+```bash
+bash scripts/typedb-up.sh                # TypeDB + FalkorDB 한 번에 기동
+bun run src/cmd/mockgen.ts
+bun run src/cmd/load.ts --reset          # n_ary (hyperedge)
+bun run src/cmd/load-falkor.ts --reset   # n_ary_triplet (pair-wise)
+bun run src/cmd/leakage-test.ts          # 케이스별 카운트 + phantom 탐지
+```
+
 ## 상세 결정 사항
 
 - **TypeDB 2 vs 3**: Node/TS 드라이버 가용성 때문에 한 번 2.28로

@@ -17,5 +17,14 @@ services:
       timeout: 3s
       retries: 20
 
+  # Industry-standard property-graph baseline for the cross-episode leakage
+  # comparison. FalkorDB speaks OpenCypher over the Redis RESP protocol.
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: n_ary_falkordb
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
 volumes:
   typedb_data:
