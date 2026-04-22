@@ -91,7 +91,14 @@ export function computeStorage(ds: Dataset, falkor: { nodes: number; edges: numb
   const attributeBindings = episodes * EPISODE_OWNED_ATTRS;
   const entityInstances = ds.players.length + ds.devices.length + ds.locations.length
     + ds.npcs.length + ds.mobs.length + ds.items.length;
+  // TypeDB "record" count: attribute instances (deduped by value) are not
+  // proper per-episode records in practice, but they're real storage. We
+  // report them explicitly and use the coarse total (episodes + roles +
+  // attrs + entities) as the comparison baseline.
   const typedbTotal = episodes + roleBindings + attributeBindings + entityInstances;
+  // FalkorDB now stores Episode as a reified node AND every role binding as
+  // an edge — same logical content as TypeDB. The blowup ratio reflects
+  // TypeDB's attribute-binding overhead vs FalkorDB's flatter node props.
   const falkorTotal = falkor.nodes + falkor.edges;
   return {
     typedb: {

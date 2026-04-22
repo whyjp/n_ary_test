@@ -195,10 +195,12 @@ Bun.serve({
     }
 
     // Full pair-wise triplet graph for the alternate 3D view.
+    // Cap edges so the wire payload is sane — full reified graph has thousands.
     if (url.pathname === "/api/falkor-graph") {
       if (!(await falkorPing())) return json({ nodes: [], edges: [], falkor_available: false }, 503);
-      const dump = await graphDump(process.env.FALKOR_GRAPH ?? "n_ary_triplet");
-      return json({ ...dump, falkor_available: true });
+      const maxEdges = Number(url.searchParams.get("maxEdges") ?? "1500");
+      const dump = await graphDump(process.env.FALKOR_GRAPH ?? "n_ary_triplet", { maxEdges });
+      return json({ ...dump, falkor_available: true, edge_limit: maxEdges });
     }
 
     // Cross-episode leakage comparison (TypeDB hyperedge vs FalkorDB triplet).

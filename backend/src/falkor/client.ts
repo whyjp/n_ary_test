@@ -175,6 +175,7 @@ export function close(): void {
 export interface FalkorNode { id: string; label: string; props: Record<string, unknown> }
 export interface FalkorEdge { type: string; src: string; dst: string; srcLabel: string; dstLabel: string }
 export interface FalkorGraph { nodes: FalkorNode[]; edges: FalkorEdge[] }
+export interface FalkorDumpOptions { maxEdges?: number }
 
 // Compact format returns arrays of tuples; index into them defensively
 // because subtle rev differences in FalkorDB reshape the rows.
@@ -192,21 +193,22 @@ function asId(val: any, ids: Map<number, string>): string {
   return String(val);
 }
 
-export async function graphDump(graph: string): Promise<FalkorGraph> {
+export async function graphDump(graph: string, opts: FalkorDumpOptions = {}): Promise<FalkorGraph> {
   const nodes: FalkorNode[] = [];
   const edges: FalkorEdge[] = [];
+  const maxEdges = opts.maxEdges ?? 0; // 0 = no cap
   try {
-    // Nodes: request labels + id + props map. Use verbose (non-compact) output.
     const nres = await graphQueryRaw(graph, "MATCH (n) RETURN labels(n)[0] AS label, n.id AS id");
     const nrows = nres?.[1] ?? [];
     for (const row of nrows) {
-      // row is [label, id]
       const label = String(row[0] ?? "");
       const id = String(row[1] ?? "");
       if (id) nodes.push({ id, label, props: {} });
     }
 
-    const eres = await graphQueryRaw(graph, "MATCH (a)-[r]->(b) RETURN type(r) AS t, labels(a)[0] AS la, a.id AS aid, labels(b)[0] AS lb, b.id AS bid");
+    const limit = maxEdges > 0 ? ` LIMIT ${maxEdges}` : "";
+    const eres = await graphQueryRaw(graph,
+      "MATCH (a)-[r]->(b) RETURN type(r) AS t, labels(a)[0] AS la, a.id AS aid, labels(b)[0] AS lb, b.id AS bid" + limit);
     const erows = eres?.[1] ?? [];
     for (const row of erows) {
       const type = String(row[0] ?? "");
