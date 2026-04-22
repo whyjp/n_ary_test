@@ -6,6 +6,7 @@ apps/web/node_modules/
 apps/web/dist/
 apps/web/.vite/
 apps/web/tsconfig.tsbuildinfo
+backend/tsconfig.tsbuildinfo
 docker/schema.tql
 *.log
 

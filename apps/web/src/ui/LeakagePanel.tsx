@@ -1,13 +1,22 @@
 import { useState } from "react";
 
+interface Verdict {
+  score: number;
+  kind: "phantom" | "underrecall" | "exact" | "empty";
+  rule_verdict: string;
+  llm_verdict?: string;
+  judge: "heuristic" | "openai" | "anthropic";
+}
 interface CaseResult {
   id: string;
   title: string;
   note: string;
+  kind: "co_occur" | "multi_hop" | "cardinality";
   hyper: { tql: string; count: number; ns_ids: string[]; error?: string };
   triplet: { cypher: string; count: number; error?: string };
   phantom: boolean;
   ratio: string;
+  verdict?: Verdict;
 }
 
 interface LeakageReport {
@@ -16,6 +25,8 @@ interface LeakageReport {
   total_hyper: number;
   total_triplet: number;
   total_phantom: number;
+  avg_score: number;
+  judge: "heuristic" | "openai" | "anthropic";
   cases: CaseResult[];
 }
 
@@ -75,6 +86,8 @@ export function LeakagePanel({ onHighlight }: Props) {
             <div>hyperedge <b>{report.total_hyper}</b></div>
             <div>triplet <b>{report.total_triplet}</b></div>
             <div>phantom <b style={{ color: "var(--accent-red)" }}>{report.total_phantom}</b></div>
+            <div>score <b style={{ color: report.avg_score >= 70 ? "var(--accent-nary)" : "var(--accent-red)" }}>{report.avg_score}/100</b></div>
+            <div style={{ fontSize: 9, letterSpacing: "0.14em", color: "var(--text-faint)" }}>judge: {report.judge}</div>
           </div>
 
           <div className="leakage-cases">
@@ -84,14 +97,31 @@ export function LeakagePanel({ onHighlight }: Props) {
                 className={"leakage-case" + (selectedCaseId === c.id ? " selected" : "") + (c.phantom ? " phantom" : "")}
                 onClick={() => highlightCase(c)}
               >
-                <div className="leakage-case-title">{c.title}</div>
+                <div className="leakage-case-title">
+                  <span className={"kind-chip kind-" + c.kind}>{c.kind}</span>
+                  {c.title}
+                </div>
                 <div className="leakage-case-counts">
                   <span title="TypeDB n-ary hyperedge">n-ary <b>{c.hyper.count}</b></span>
                   <span title="FalkorDB triplet">triplet <b>{c.triplet.count}</b></span>
                   <span title="triplet / hyperedge">ratio <b>{c.ratio}×</b></span>
+                  {c.verdict && (
+                    <span title={c.verdict.rule_verdict}
+                          className={"score-chip score-" + (c.verdict.score >= 70 ? "ok" : c.verdict.score >= 30 ? "warn" : "bad")}>
+                      {c.verdict.score}/100
+                    </span>
+                  )}
                   {c.phantom && <span className="phantom-tag">PHANTOM</span>}
                 </div>
                 <div className="leakage-case-note">{c.note}</div>
+                {c.verdict && (
+                  <div className="leakage-case-verdict">
+                    <b>{c.verdict.kind}</b> · {c.verdict.rule_verdict}
+                    {c.verdict.llm_verdict && (
+                      <div className="llm-verdict">LLM({c.verdict.judge}): {c.verdict.llm_verdict}</div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

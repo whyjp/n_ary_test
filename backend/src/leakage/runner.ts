@@ -3,6 +3,7 @@
 
 import { cases, type LeakageCase } from "./cases.ts";
 import { graphQuery, answerCount, ping as falkorPing } from "../falkor/client.ts";
+import { judgeCase, type Verdict } from "./judge.ts";
 
 const TYPEDB_HTTP = process.env.TYPEDB_HTTP ?? "http://localhost:8000";
 const TYPEDB_DB   = process.env.TYPEDB_DATABASE ?? "n_ary";
@@ -14,10 +15,12 @@ export interface CaseResult {
   id: string;
   title: string;
   note: string;
+  kind: LeakageCase["kind"];
   hyper: { tql: string; count: number; ns_ids: string[]; error?: string };
   triplet: { cypher: string; count: number; error?: string };
   phantom: boolean;
   ratio: string;
+  verdict?: Verdict;
 }
 
 export interface LeakageReport {
@@ -26,6 +29,8 @@ export interface LeakageReport {
   total_hyper: number;
   total_triplet: number;
   total_phantom: number;
+  avg_score: number;
+  judge: "heuristic" | "openai" | "anthropic";
   cases: CaseResult[];
 }
 
@@ -79,6 +84,8 @@ export async function runLeakage(): Promise<LeakageReport> {
     typedb_available: typedbAv,
     falkor_available: falkorAv,
     total_hyper: 0, total_triplet: 0, total_phantom: 0,
+    avg_score: 0,
+    judge: (process.env.LLM_JUDGE?.toLowerCase() as any) ?? "heuristic",
     cases: [],
   };
   if (!typedbAv || !falkorAv) return report;
@@ -87,19 +94,28 @@ export async function runLeakage(): Promise<LeakageReport> {
   for (const c of cases) {
     const [h, t] = await Promise.all([typedbNsIds(tok, c.hyper), tripletCount(c.triplet)]);
     const phantom = h.ids.length === 0 && t.count > 0;
-    report.cases.push({
+    const result: CaseResult = {
       id: c.id,
       title: c.title,
       note: c.note,
+      kind: c.kind,
       hyper:   { tql: c.hyper,   count: h.ids.length, ns_ids: h.ids, error: h.error },
       triplet: { cypher: c.triplet, count: t.count, error: t.error },
       phantom,
       ratio: h.ids.length === 0 ? (t.count === 0 ? "—" : "∞") : (t.count / h.ids.length).toFixed(2),
-    });
+    };
+    result.verdict = await judgeCase(result, c);
+    report.cases.push(result);
     report.total_hyper += h.ids.length;
     report.total_triplet += t.count;
     if (phantom) report.total_phantom += t.count;
   }
+  report.avg_score = report.cases.length
+    ? Math.round(report.cases.reduce((a, c) => a + (c.verdict?.score ?? 0), 0) / report.cases.length)
+    : 0;
+  // Report judge: if any case got an LLM verdict, use that as reported judge.
+  const anyLLM = report.cases.find((c) => c.verdict?.judge && c.verdict.judge !== "heuristic");
+  report.judge = (anyLLM?.verdict?.judge ?? "heuristic") as LeakageReport["judge"];
   return report;
 }
 
