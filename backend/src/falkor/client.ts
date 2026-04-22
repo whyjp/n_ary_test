@@ -171,3 +171,17 @@ export function answerCount(result: any): number {
 export function close(): void {
   shared?.close(); shared = null;
 }
+
+export async function graphStats(graph: string): Promise<{ nodes: number; edges: number }> {
+  try {
+    const nodesRes = await graphQuery(graph, "MATCH (n) RETURN count(n)");
+    const edgesRes = await graphQuery(graph, "MATCH ()-[r]->() RETURN count(r)");
+    // Compact payload: result[1] is the rows array; first row first column is
+    // the count as an integer (or an object with { value } depending on build).
+    const nodes = Number((nodesRes?.[1]?.[0]?.[0]?.[1] ?? nodesRes?.[1]?.[0]?.[0]) ?? 0);
+    const edges = Number((edgesRes?.[1]?.[0]?.[0]?.[1] ?? edgesRes?.[1]?.[0]?.[0]) ?? 0);
+    return { nodes, edges };
+  } catch {
+    return { nodes: 0, edges: 0 };
+  }
+}

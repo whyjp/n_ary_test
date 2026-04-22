@@ -10,6 +10,7 @@ import type { Dataset, Episode } from "../domain/types.ts";
 import { fetchDataset, runReadQuery, ping } from "../typedb/client.ts";
 import { translateAndRun } from "../narrative/translate.ts";
 import { runLeakage } from "../leakage/runner.ts";
+import { graphStats, ping as falkorPing } from "../falkor/client.ts";
 
 function flag(name: string, fallback: string): string {
   const i = Bun.argv.indexOf(name);
@@ -82,15 +83,71 @@ Bun.serve({
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
 
     if (url.pathname === "/api/health") {
-      const alive = await ping();
+      const [alive, falkorAlive] = await Promise.all([ping(), falkorPing()]);
       return json({
         ok: cache.source === "typedb" && alive,
         episodes: cache.dataset?.episodes.length ?? 0,
         typedb_available: alive,
+        falkor_available: falkorAlive,
         data_source: cache.source,
         loaded_at: cache.loadedAt,
         last_error: cache.lastError,
         window: cache.dataset ? { start: cache.dataset.window_start, end: cache.dataset.window_end } : null,
+      });
+    }
+
+    // Aggregate benchmark summary — powers the FE infographic.
+    if (url.pathname === "/api/benchmark-info") {
+      const ds = cache.dataset;
+      const [typedbAlive, falkorAlive] = await Promise.all([ping(), falkorPing()]);
+      const falkor = falkorAlive
+        ? await graphStats(process.env.FALKOR_GRAPH ?? "n_ary_triplet")
+        : { nodes: 0, edges: 0 };
+
+      const relCounts: Record<string, number> = {};
+      const actCounts: Record<string, number> = {};
+      if (ds) {
+        for (const e of ds.episodes) {
+          relCounts[e.relation_type] = (relCounts[e.relation_type] ?? 0) + 1;
+          actCounts[e.activity_type] = (actCounts[e.activity_type] ?? 0) + 1;
+        }
+      }
+
+      // Run leakage only if both DBs are up — it's a couple of round-trips.
+      let leakage: Awaited<ReturnType<typeof runLeakage>> | null = null;
+      if (typedbAlive && falkorAlive) {
+        try { leakage = await runLeakage(); } catch { leakage = null; }
+      }
+
+      const entityCount = ds
+        ? ds.players.length + ds.devices.length + ds.locations.length + ds.npcs.length + ds.mobs.length + ds.items.length
+        : 0;
+
+      return json({
+        typedb: {
+          alive: typedbAlive,
+          database: process.env.TYPEDB_DATABASE ?? "n_ary",
+          episodes: ds?.episodes.length ?? 0,
+          entities: entityCount,
+          cross_minute: ds?.episodes.filter((e) => e.crosses_minute).length ?? 0,
+          cross_hour: ds?.episodes.filter((e) => e.crosses_hour).length ?? 0,
+          window: ds ? { start: ds.window_start, end: ds.window_end } : null,
+        },
+        falkor: {
+          alive: falkorAlive,
+          graph: process.env.FALKOR_GRAPH ?? "n_ary_triplet",
+          nodes: falkor.nodes,
+          edges: falkor.edges,
+        },
+        relation_counts: relCounts,
+        activity_counts: actCounts,
+        leakage: leakage ? {
+          cases: leakage.cases.length,
+          total_hyper: leakage.total_hyper,
+          total_triplet: leakage.total_triplet,
+          total_phantom: leakage.total_phantom,
+          phantom_cases: leakage.cases.filter((c) => c.phantom).length,
+        } : null,
       });
     }
 

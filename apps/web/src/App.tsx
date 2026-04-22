@@ -6,6 +6,7 @@ import { StatsPanel } from "./ui/StatsPanel";
 import { QueryPanel } from "./ui/QueryPanel";
 import { NarrativePanel } from "./ui/NarrativePanel";
 import { LeakagePanel } from "./ui/LeakagePanel";
+import { InfographicBar } from "./ui/InfographicBar";
 
 const INITIAL_FILTERS: Filters = {
   relationType: null,
@@ -20,6 +21,7 @@ export function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("hour");
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
   const [typedbAvailable, setTypedbAvailable] = useState<boolean | null>(null);
+  const [falkorAvailable, setFalkorAvailable] = useState<boolean | null>(null);
   const [dataSource, setDataSource] = useState<"typedb" | "none" | null>(null);
   const [spacingMult, setSpacingMult] = useState(1);
   const [nodeScale, setNodeScale] = useState(0.9);
@@ -31,6 +33,7 @@ export function App() {
       const [ds, h] = await Promise.all([fetchDataset(), fetchHealth()]);
       setDataset(ds);
       setTypedbAvailable(h.typedb_available);
+      setFalkorAvailable(h.falkor_available);
       setDataSource(h.data_source);
     } catch (e) {
       setErr(String(e));
@@ -98,6 +101,7 @@ export function App() {
       </div>
 
       <div className="hud-overlay">
+      <InfographicBar />
       <div className="header">
         <div className="eyebrow">n-ary hyperedges · temporal layers</div>
         <div className="title">
@@ -115,6 +119,7 @@ export function App() {
         dataset={dataset}
         filters={filters}
         typedbAvailable={typedbAvailable}
+        falkorAvailable={falkorAvailable}
         dataSource={dataSource}
         onRefresh={onRefresh}
       />

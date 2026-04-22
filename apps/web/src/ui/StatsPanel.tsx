@@ -4,11 +4,12 @@ interface Props {
   dataset: Dataset;
   filters: Filters;
   typedbAvailable: boolean | null;
+  falkorAvailable: boolean | null;
   dataSource: "typedb" | "none" | null;
   onRefresh: () => void;
 }
 
-export function StatsPanel({ dataset, filters, typedbAvailable, dataSource, onRefresh }: Props) {
+export function StatsPanel({ dataset, filters, typedbAvailable, falkorAvailable, dataSource, onRefresh }: Props) {
   const crossMinute = dataset.episodes.filter((e) => e.crosses_minute).length;
   const crossHour = dataset.episodes.filter((e) => e.crosses_hour).length;
   const visible = dataset.episodes.filter((e) => {
@@ -67,6 +68,12 @@ export function StatsPanel({ dataset, filters, typedbAvailable, dataSource, onRe
         <span className="k">TypeDB</span>
         <span className="v" style={{ color: typedbAvailable ? "var(--accent-nary)" : "var(--accent-red)" }}>
           {typedbAvailable === null ? "…" : typedbAvailable ? "connected" : "offline"}
+        </span>
+      </div>
+      <div className="row">
+        <span className="k">FalkorDB</span>
+        <span className="v" style={{ color: falkorAvailable ? "var(--accent-nary)" : "var(--accent-red)" }}>
+          {falkorAvailable === null ? "…" : falkorAvailable ? "connected" : "offline"}
         </span>
       </div>
       <div className="row">
