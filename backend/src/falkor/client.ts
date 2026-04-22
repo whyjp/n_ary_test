@@ -172,6 +172,56 @@ export function close(): void {
   shared?.close(); shared = null;
 }
 
+export interface FalkorNode { id: string; label: string; props: Record<string, unknown> }
+export interface FalkorEdge { type: string; src: string; dst: string; srcLabel: string; dstLabel: string }
+export interface FalkorGraph { nodes: FalkorNode[]; edges: FalkorEdge[] }
+
+// Compact format returns arrays of tuples; index into them defensively
+// because subtle rev differences in FalkorDB reshape the rows.
+function asValue(cell: any): any {
+  if (cell == null) return null;
+  if (Array.isArray(cell) && cell.length >= 2) return cell[1]; // [type, value]
+  return cell;
+}
+function asId(val: any, ids: Map<number, string>): string {
+  if (typeof val === "string") return val;
+  if (typeof val === "number") return ids.get(val) ?? String(val);
+  if (val && typeof val === "object" && val.properties) {
+    for (const p of val.properties) if (asValue(p[0]) === "id" || p.name === "id") return String(asValue(p[1] ?? p.value));
+  }
+  return String(val);
+}
+
+export async function graphDump(graph: string): Promise<FalkorGraph> {
+  const nodes: FalkorNode[] = [];
+  const edges: FalkorEdge[] = [];
+  try {
+    // Nodes: request labels + id + props map. Use verbose (non-compact) output.
+    const nres = await graphQueryRaw(graph, "MATCH (n) RETURN labels(n)[0] AS label, n.id AS id");
+    const nrows = nres?.[1] ?? [];
+    for (const row of nrows) {
+      // row is [label, id]
+      const label = String(row[0] ?? "");
+      const id = String(row[1] ?? "");
+      if (id) nodes.push({ id, label, props: {} });
+    }
+
+    const eres = await graphQueryRaw(graph, "MATCH (a)-[r]->(b) RETURN type(r) AS t, labels(a)[0] AS la, a.id AS aid, labels(b)[0] AS lb, b.id AS bid");
+    const erows = eres?.[1] ?? [];
+    for (const row of erows) {
+      const type = String(row[0] ?? "");
+      const srcLabel = String(row[1] ?? "");
+      const src = String(row[2] ?? "");
+      const dstLabel = String(row[3] ?? "");
+      const dst = String(row[4] ?? "");
+      if (type && src && dst) edges.push({ type, src, dst, srcLabel, dstLabel });
+    }
+  } catch {
+    /* return whatever we have */
+  }
+  return { nodes, edges };
+}
+
 export async function graphStats(graph: string): Promise<{ nodes: number; edges: number }> {
   try {
     const nodesRes = await graphQuery(graph, "MATCH (n) RETURN count(n)");

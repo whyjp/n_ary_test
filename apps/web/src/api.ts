@@ -57,6 +57,22 @@ export async function fetchBenchmarkInfo(): Promise<BenchmarkInfo> {
   return await res.json();
 }
 
+export interface FalkorGraphNode { id: string; label: string }
+export interface FalkorGraphEdge { type: string; src: string; dst: string; srcLabel: string; dstLabel: string }
+export interface FalkorGraphResponse {
+  nodes: FalkorGraphNode[];
+  edges: FalkorGraphEdge[];
+  falkor_available: boolean;
+}
+
+export async function fetchFalkorGraph(): Promise<FalkorGraphResponse> {
+  const res = await fetch("/api/falkor-graph");
+  if (res.status === 503) {
+    return { nodes: [], edges: [], falkor_available: false };
+  }
+  return await res.json();
+}
+
 export async function refreshServer(): Promise<{ ok: boolean; data_source: string; episodes: number }> {
   const res = await fetch("/api/refresh", { method: "POST" });
   return await res.json();

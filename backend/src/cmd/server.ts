@@ -10,7 +10,7 @@ import type { Dataset, Episode } from "../domain/types.ts";
 import { fetchDataset, runReadQuery, ping } from "../typedb/client.ts";
 import { translateAndRun } from "../narrative/translate.ts";
 import { runLeakage } from "../leakage/runner.ts";
-import { graphStats, ping as falkorPing } from "../falkor/client.ts";
+import { graphStats, graphDump, ping as falkorPing } from "../falkor/client.ts";
 
 function flag(name: string, fallback: string): string {
   const i = Bun.argv.indexOf(name);
@@ -191,6 +191,13 @@ Bun.serve({
       if (!body.tql) return json({ error: "missing tql" }, 400);
       const r = await runReadQuery(body.tql);
       return json(r);
+    }
+
+    // Full pair-wise triplet graph for the alternate 3D view.
+    if (url.pathname === "/api/falkor-graph") {
+      if (!(await falkorPing())) return json({ nodes: [], edges: [], falkor_available: false }, 503);
+      const dump = await graphDump(process.env.FALKOR_GRAPH ?? "n_ary_triplet");
+      return json({ ...dump, falkor_available: true });
     }
 
     // Cross-episode leakage comparison (TypeDB hyperedge vs FalkorDB triplet).

@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { Dataset, Filters, ViewMode } from "./types";
 import { fetchDataset, fetchHealth, refreshServer } from "./api";
 import { TemporalScene } from "./viz/TemporalScene";
+import { FalkorScene } from "./viz/FalkorScene";
+
+type GraphSource = "typedb" | "falkor";
 import { StatsPanel } from "./ui/StatsPanel";
 import { QueryPanel } from "./ui/QueryPanel";
 import { NarrativePanel } from "./ui/NarrativePanel";
@@ -26,6 +29,7 @@ export function App() {
   const [spacingMult, setSpacingMult] = useState(1);
   const [nodeScale, setNodeScale] = useState(0.9);
   const [highlightNsIds, setHighlightNsIds] = useState<Set<string> | null>(null);
+  const [graphSource, setGraphSource] = useState<GraphSource>("typedb");
   const [err, setErr] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
@@ -90,14 +94,18 @@ export function App() {
   return (
     <div className="app">
       <div className="stage">
-        <TemporalScene
-          dataset={dataset}
-          viewMode={viewMode}
-          filters={filters}
-          spacingMult={spacingMult}
-          nodeScale={nodeScale}
-          highlightNsIds={highlightNsIds}
-        />
+        {graphSource === "typedb" ? (
+          <TemporalScene
+            dataset={dataset}
+            viewMode={viewMode}
+            filters={filters}
+            spacingMult={spacingMult}
+            nodeScale={nodeScale}
+            highlightNsIds={highlightNsIds}
+          />
+        ) : (
+          <FalkorScene nodeScale={nodeScale} />
+        )}
       </div>
 
       <div className="hud-overlay">
@@ -133,15 +141,29 @@ export function App() {
       <LeakagePanel onHighlight={setHighlightNsIds} />
 
       <div className="controls">
+        <div className="source-group">
+          <button
+            className={"mode-btn source" + (graphSource === "typedb" ? " active typedb" : "")}
+            onClick={() => setGraphSource("typedb")}
+            title="TypeDB n-ary hyperedge 그래프"
+          >TypeDB · n-ary</button>
+          <button
+            className={"mode-btn source" + (graphSource === "falkor" ? " active falkor" : "")}
+            onClick={() => setGraphSource("falkor")}
+            title="FalkorDB pair-wise triplet 그래프 (시간축 없음)"
+          >FalkorDB · triplet</button>
+        </div>
         <button
           className={"mode-btn" + (viewMode === "minute" ? " active" : "")}
           onClick={() => setViewMode("minute")}
+          disabled={graphSource !== "typedb"}
         >
           1min · 60 planes
         </button>
         <button
           className={"mode-btn" + (viewMode === "hour" ? " active" : "")}
           onClick={() => setViewMode("hour")}
+          disabled={graphSource !== "typedb"}
         >
           1h · 2 planes
         </button>
