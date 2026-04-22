@@ -1,0 +1,98 @@
+#
+# n_ary_test — TypeDB 3.x schema (TypeQL 3)
+#
+# `episode` is the hyperedge relation — one JSON log line = one episode, linking
+# any number of typed entities through distinct roles. 4-layer NodeSet materialised
+# via attributes owned by the relation so each star subgraph stays retrievable as
+# a unit:
+#
+#   L0 fact      -> relation_type + role players
+#   L1 temporal  -> event_time / minute_bucket / hour_bucket / valid_* / importance / belief
+#   L2 context   -> activity_type / mood
+#   L3 auxiliary -> community_id / source_ref / ns_id
+#
+
+define
+
+  attribute player_id    , value string;
+  attribute username     , value string;
+  attribute device_id    , value string;
+  attribute device_type  , value string;
+  attribute location_id  , value string;
+  attribute zone_name    , value string;
+  attribute npc_id       , value string;
+  attribute npc_kind     , value string;
+  attribute mob_id       , value string;
+  attribute mob_species  , value string;
+  attribute item_id      , value string;
+  attribute item_kind    , value string;
+
+  attribute ns_id          , value string;
+  attribute relation_type  , value string;
+  attribute event_time     , value datetime;
+  attribute minute_bucket  , value integer;
+  attribute hour_bucket    , value integer;
+  attribute valid_from     , value datetime;
+  attribute valid_until    , value datetime;
+  attribute importance     , value double;
+  attribute belief         , value double;
+  attribute crosses_minute , value boolean;
+  attribute crosses_hour   , value boolean;
+  attribute activity_type  , value string;
+  attribute mood           , value string;
+  attribute community_id   , value string;
+  attribute source_ref     , value string;
+
+  relation episode,
+    relates actor,
+    relates counterpart @card(0..16),
+    relates mob_target  @card(0..4),
+    relates item_payload @card(0..16),
+    relates at_location @card(0..2),
+    relates via_device  @card(0..2),
+    owns ns_id @key,
+    owns relation_type,
+    owns event_time,
+    owns minute_bucket,
+    owns hour_bucket,
+    owns valid_from,
+    owns valid_until,
+    owns importance,
+    owns belief,
+    owns crosses_minute,
+    owns crosses_hour,
+    owns activity_type,
+    owns mood,
+    owns community_id,
+    owns source_ref;
+
+  entity player,
+    owns player_id @key,
+    owns username,
+    plays episode:actor,
+    plays episode:counterpart;
+
+  entity device,
+    owns device_id @key,
+    owns device_type,
+    plays episode:via_device;
+
+  entity location,
+    owns location_id @key,
+    owns zone_name,
+    plays episode:at_location;
+
+  entity npc,
+    owns npc_id @key,
+    owns npc_kind,
+    plays episode:counterpart;
+
+  entity mob,
+    owns mob_id @key,
+    owns mob_species,
+    plays episode:mob_target;
+
+  entity item,
+    owns item_id @key,
+    owns item_kind,
+    plays episode:item_payload;

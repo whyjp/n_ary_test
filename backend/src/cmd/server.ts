@@ -1,0 +1,160 @@
+// REST API server — TypeDB is the sole source of truth for episodes.
+// The server fetches the whole dataset at startup (and on /api/refresh) via
+// the typedb-driver, caches it in memory, and serves it to the web viz.
+//
+//   bun run backend/src/cmd/server.ts
+//   bun run backend/src/cmd/server.ts --port 5174
+
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import type { Dataset, Episode } from "../domain/types.ts";
+import { fetchDataset, runReadQuery, ping } from "../typedb/client.ts";
+import { translateAndRun } from "../narrative/translate.ts";
+
+function flag(name: string, fallback: string): string {
+  const i = Bun.argv.indexOf(name);
+  return i !== -1 && i + 1 < Bun.argv.length ? Bun.argv[i + 1]! : fallback;
+}
+
+const PORT = Number(flag("--port", process.env.PORT ?? "5174"));
+// Fallback: when TypeDB is offline, load the last-generated snapshot from disk
+// so the dev UX isn't destroyed. Data source is reported on /api/health.
+const FALLBACK = flag("--fallback-json", path.resolve("out/episodes.json"));
+
+let cache: { source: "typedb" | "fallback" | "none"; dataset: Dataset | null; loadedAt: number } = {
+  source: "none", dataset: null, loadedAt: 0,
+};
+
+async function refreshCache(): Promise<void> {
+  const alive = await ping();
+  if (alive) {
+    try {
+      const ds = await fetchDataset();
+      cache = { source: "typedb", dataset: ds, loadedAt: Date.now() };
+      console.log(`[refresh] loaded ${ds.episodes.length} episodes from TypeDB`);
+      return;
+    } catch (err) {
+      console.warn(`[refresh] TypeDB read failed: ${err}`);
+    }
+  }
+  // Fallback to the generated snapshot so we don't hard-fail in dev.
+  try {
+    const raw = await readFile(FALLBACK, "utf8");
+    const ds = JSON.parse(raw) as Dataset;
+    cache = { source: "fallback", dataset: ds, loadedAt: Date.now() };
+    console.log(`[refresh] fallback — loaded ${ds.episodes.length} episodes from ${FALLBACK}`);
+  } catch (err) {
+    cache = { source: "none", dataset: null, loadedAt: Date.now() };
+    console.warn(`[refresh] no fallback available: ${err}`);
+  }
+}
+
+await refreshCache();
+
+function cors(headers: Headers = new Headers()): Headers {
+  headers.set("access-control-allow-origin", "*");
+  headers.set("access-control-allow-headers", "content-type");
+  headers.set("access-control-allow-methods", "GET,POST,OPTIONS");
+  return headers;
+}
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: cors(new Headers({ "content-type": "application/json" })),
+  });
+}
+
+function filterEpisodes(list: Episode[], p: URLSearchParams): Episode[] {
+  const fm = p.get("fromMinute"); const tm = p.get("toMinute");
+  const touch = p.get("touchEntity");
+  const crossM = p.get("crossMinute") === "1";
+  const crossH = p.get("crossHour") === "1";
+  const rel = p.get("relationType");
+  const act = p.get("activityType");
+  let r = list;
+  if (fm)    r = r.filter((e) => e.minute_bucket >= Number(fm));
+  if (tm)    r = r.filter((e) => e.minute_bucket <= Number(tm));
+  if (touch) r = r.filter((e) => e.roles.some((x) => x.entity_id === touch));
+  if (crossM) r = r.filter((e) => e.crosses_minute);
+  if (crossH) r = r.filter((e) => e.crosses_hour);
+  if (rel)   r = r.filter((e) => e.relation_type === rel);
+  if (act)   r = r.filter((e) => e.activity_type === act);
+  return r;
+}
+
+Bun.serve({
+  port: PORT,
+  async fetch(req) {
+    const url = new URL(req.url);
+    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
+
+    if (url.pathname === "/api/health") {
+      const alive = await ping();
+      return json({
+        ok: true,
+        episodes: cache.dataset?.episodes.length ?? 0,
+        typedb_available: alive,
+        data_source: cache.source,
+        loaded_at: cache.loadedAt,
+        window: cache.dataset ? { start: cache.dataset.window_start, end: cache.dataset.window_end } : null,
+      });
+    }
+
+    if (url.pathname === "/api/refresh" && req.method === "POST") {
+      await refreshCache();
+      return json({ ok: true, data_source: cache.source, episodes: cache.dataset?.episodes.length ?? 0 });
+    }
+
+    if (!cache.dataset) return json({ error: "no_data", hint: "start TypeDB + run mockgen + typedb-load, then POST /api/refresh" }, 503);
+
+    if (url.pathname === "/api/episodes") return json(cache.dataset);
+
+    if (url.pathname === "/api/stats") {
+      const m = new Map<number, number>();
+      const h = new Map<number, number>();
+      for (const e of cache.dataset.episodes) {
+        m.set(e.minute_bucket, (m.get(e.minute_bucket) ?? 0) + 1);
+        h.set(e.hour_bucket, (h.get(e.hour_bucket) ?? 0) + 1);
+      }
+      return json({
+        total: cache.dataset.episodes.length,
+        minutes: [...m].sort((a, b) => a[0] - b[0]).map(([b, n]) => ({ bucket: b, count: n })),
+        hours: [...h].sort((a, b) => a[0] - b[0]).map(([b, n]) => ({ bucket: b, count: n })),
+        crosses_minute: cache.dataset.episodes.filter((e) => e.crosses_minute).length,
+        crosses_hour: cache.dataset.episodes.filter((e) => e.crosses_hour).length,
+      });
+    }
+
+    if (url.pathname === "/api/query/filter") {
+      const filtered = filterEpisodes(cache.dataset.episodes, url.searchParams);
+      return json({ count: filtered.length, episodes: filtered });
+    }
+
+    if (url.pathname === "/api/query" && req.method === "POST") {
+      const body = await req.json() as { tql?: string };
+      if (!body.tql) return json({ error: "missing tql" }, 400);
+      const r = await runReadQuery(body.tql);
+      return json(r);
+    }
+
+    // Natural-language episodic query.
+    // body: { question }  ->  { question, tql, filter, matches: Episode[], narrative: string[] }
+    if (url.pathname === "/api/narrative" && req.method === "POST") {
+      const body = await req.json() as { question?: string };
+      if (!body.question) return json({ error: "missing question" }, 400);
+      if (!cache.dataset)  return json({ error: "no_data" }, 503);
+      const r = translateAndRun(body.question, cache.dataset);
+      return json(r);
+    }
+
+    return json({ error: "not_found", path: url.pathname }, 404);
+  },
+});
+
+console.log(`listening on http://localhost:${PORT}  (source=${cache.source})`);
+console.log(`  GET  /api/health`);
+console.log(`  GET  /api/episodes`);
+console.log(`  GET  /api/stats`);
+console.log(`  GET  /api/query/filter?...`);
+console.log(`  POST /api/query          { tql }  (TypeDB must be up)`);
+console.log(`  POST /api/refresh        (re-pull from TypeDB)`);

@@ -1,0 +1,20 @@
+backend/out/
+backend/bin/
+backend/node_modules/
+backend/probe.ts
+apps/web/node_modules/
+apps/web/dist/
+apps/web/.vite/
+apps/web/tsconfig.tsbuildinfo
+docker/schema.tql
+*.log
+
+# local tooling
+.claude/
+.omc/
+.playwright-mcp/
+
+# ephemeral screenshots captured during development
+viz-*.png
+
+.DS_Store

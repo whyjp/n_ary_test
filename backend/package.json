@@ -1,0 +1,16 @@
+{
+  "name": "n_ary_test-backend",
+  "version": "0.1.0",
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "@types/bun": "^1.1.8"
+  },
+  "private": true,
+  "scripts": {
+    "mockgen": "bun run src/cmd/mockgen.ts",
+    "server": "bun run src/cmd/server.ts",
+    "querytest": "bun run src/cmd/querytest.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module"
+}

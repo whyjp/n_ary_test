@@ -1,0 +1,21 @@
+services:
+  typedb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: n_ary_test/typedb:3
+    container_name: n_ary_typedb
+    restart: unless-stopped
+    ports:
+      - "1729:1729"   # gRPC (future driver clients)
+      - "8000:8000"   # HTTP API (used by this project)
+    volumes:
+      - typedb_data:/opt/typedb/server/data
+    healthcheck:
+      test: ["CMD-SHELL", "typedb server status || exit 0"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  typedb_data:

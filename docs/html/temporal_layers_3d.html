@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time-batched typed n-ary relations · 5h / 10h temporal layers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300&family=Archivo:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #08080c;
+    --bg-raised: #0e0e16;
+    --border: rgba(255,255,255,0.08);
+    --border-strong: rgba(255,255,255,0.18);
+    --text: #eaeaf0;
+    --text-dim: #9898a8;
+    --text-faint: #5a5a68;
+    --accent-nary: #2de8c8;
+    --accent-pg: #ffb347;
+    --accent-mag: #ff6b9d;
+    --accent-purple: #a78bfa;
+    --accent-blue: #60a5fa;
+    --accent-red: #ff6b6b;
+    --display: 'Fraunces', serif;
+    --body: 'Archivo', sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: var(--body); font-weight: 300; -webkit-font-smoothing: antialiased; }
+  body { overflow-x: hidden; min-height: 100vh; }
+
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1000;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.04 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
+    opacity: 0.5; mix-blend-mode: overlay;
+  }
+
+  /* Header */
+  .header {
+    max-width: 1200px; margin: 0 auto; padding: 80px 48px 32px; position: relative;
+  }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em;
+    text-transform: uppercase; color: var(--accent-nary); margin-bottom: 28px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .eyebrow::before { content: ''; width: 24px; height: 1px; background: var(--accent-nary); }
+  .header h1 {
+    font-family: var(--display); font-weight: 300; font-size: clamp(36px, 6vw, 64px);
+    line-height: 1.0; letter-spacing: -0.025em; margin-bottom: 24px;
+  }
+  .header h1 em { font-style: italic; color: var(--accent-nary); font-weight: 300; }
+  .header p {
+    font-size: 15.5px; color: var(--text-dim); max-width: 680px; line-height: 1.7;
+  }
+  .header p code {
+    font-family: var(--mono); font-size: 13.5px; color: var(--accent-nary);
+    background: rgba(45,232,200,0.08); padding: 2px 7px; border-radius: 2px;
+  }
+
+  /* Stage */
+  .viz-section { padding: 16px 0 80px; }
+  .viz-stage {
+    position: relative; height: 84vh; min-height: 720px;
+    margin: 0 auto; max-width: 1440px;
+    background: radial-gradient(ellipse at center, #0c0c18 0%, var(--bg) 100%);
+    border-top: 0.5px solid var(--border);
+    border-bottom: 0.5px solid var(--border);
+    overflow: hidden;
+  }
+  #three-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+
+  /* Controls */
+  .viz-controls {
+    position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 2px; z-index: 10;
+    background: rgba(8,8,12,0.75); backdrop-filter: blur(14px);
+    border: 0.5px solid var(--border-strong); border-radius: 2px;
+    padding: 4px;
+  }
+  .mode-btn {
+    background: transparent; border: none; cursor: pointer;
+    padding: 13px 26px; font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-dim);
+    transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+    position: relative; min-width: 200px;
+  }
+  .mode-btn::before {
+    content: ''; position: absolute; top: 50%; left: 14px; width: 6px; height: 6px;
+    border-radius: 50%; transform: translateY(-50%);
+    background: var(--text-faint); transition: all 0.3s;
+  }
+  .mode-btn.active { color: var(--text); background: rgba(255,255,255,0.04); }
+  .mode-btn[data-layers="5"].active::before { background: var(--accent-nary); box-shadow: 0 0 12px var(--accent-nary); }
+  .mode-btn[data-layers="10"].active::before { background: var(--accent-purple); box-shadow: 0 0 12px var(--accent-purple); }
+  .mode-btn:hover:not(.active) { color: var(--text); }
+
+  /* Stats */
+  .viz-stats {
+    position: absolute; top: 24px; right: 24px; z-index: 10;
+    background: rgba(8,8,12,0.72); backdrop-filter: blur(14px);
+    border: 0.5px solid var(--border-strong); padding: 18px 22px;
+    min-width: 240px;
+  }
+  .viz-stats .s-title {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.25em;
+    text-transform: uppercase; color: var(--text-faint); margin-bottom: 14px;
+  }
+  .viz-stats .s-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin: 7px 0; font-family: var(--mono); font-size: 12px;
+  }
+  .viz-stats .s-row .k { color: var(--text-dim); }
+  .viz-stats .s-row .v { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; transition: color 0.4s; }
+  .viz-stats .s-row.accent .v { color: var(--accent-nary); }
+  .viz-stats .s-row.warn .v { color: var(--accent-pg); }
+  .viz-stats .s-row.divide { margin-top: 12px; padding-top: 10px; border-top: 0.5px solid rgba(255,255,255,0.06); }
+
+  /* Legend */
+  .viz-legend {
+    position: absolute; top: 24px; left: 24px; z-index: 10;
+    background: rgba(8,8,12,0.6); backdrop-filter: blur(14px);
+    border: 0.5px solid var(--border); padding: 16px 20px; font-family: var(--mono);
+    font-size: 11px; color: var(--text-dim); letter-spacing: 0.05em; max-width: 260px;
+  }
+  .viz-legend .lg-title {
+    font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--text-faint); margin-bottom: 10px;
+  }
+  .viz-legend .lg-section { margin-bottom: 12px; }
+  .viz-legend .lg-section:last-child { margin-bottom: 0; }
+  .viz-legend .lg-row {
+    display: flex; align-items: center; gap: 10px; margin: 5px 0;
+  }
+  .lg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .lg-bar { width: 14px; height: 3px; flex-shrink: 0; border-radius: 1px; }
+
+  /* Tier indicator (right side, near stats) */
+  .tier-panel {
+    position: absolute; bottom: 28px; left: 24px; z-index: 10;
+    background: rgba(8,8,12,0.68); backdrop-filter: blur(14px);
+    border: 0.5px solid var(--border); padding: 14px 18px;
+    font-family: var(--mono); font-size: 10.5px; color: var(--text-dim);
+    letter-spacing: 0.08em; max-width: 280px; line-height: 1.7;
+  }
+  .tier-panel .tp-title {
+    font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--text-faint); margin-bottom: 8px;
+  }
+  .tier-panel .tp-row { display: flex; align-items: center; gap: 10px; margin: 4px 0; }
+
+  /* Hint */
+  .viz-hint {
+    position: absolute; bottom: 28px; right: 24px; z-index: 10;
+    font-family: var(--mono); font-size: 10px; color: var(--text-faint);
+    letter-spacing: 0.15em; text-transform: uppercase;
+  }
+
+  /* Footer */
+  footer {
+    padding: 60px 48px 60px; max-width: 1200px; margin: 0 auto;
+    border-top: 0.5px solid var(--border);
+  }
+  footer .f-title {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em;
+    text-transform: uppercase; color: var(--accent-nary); margin-bottom: 16px;
+  }
+  footer .f-body {
+    font-size: 14.5px; color: var(--text-dim); line-height: 1.75; max-width: 760px;
+  }
+  footer .f-body p { margin-bottom: 12px; }
+  footer .f-body strong { color: var(--text); font-weight: 400; }
+  footer .f-body em { font-style: italic; color: var(--accent-nary); font-family: var(--display); font-weight: 300; }
+  footer .f-body code { font-family: var(--mono); font-size: 13px; color: var(--accent-nary); }
+
+  @media (max-width: 768px) {
+    .header, footer { padding-left: 24px; padding-right: 24px; }
+    .viz-stage { height: 65vh; min-height: 520px; }
+    .viz-legend, .viz-stats, .tier-panel, .viz-hint { display: none; }
+    .mode-btn { min-width: 130px; padding: 12px 18px; font-size: 10px; letter-spacing: 0.15em; }
+  }
+</style>
+</head>
+<body>
+
+<section class="header">
+  <div class="eyebrow">Temporal layering · MMORPG event memory</div>
+  <h1>1시간 배치, <em>층층이</em> 쌓인 관계.</h1>
+  <p>
+    <code>1h batch</code>를 한 평면 슬라이스로, <code>5h</code> 또는 <code>10h</code>을 시간 축으로 쌓는다. 같은 엔티티는 시간을 관통하는 점선 column으로 표시되고, 각 슬라이스 안의 typed n-ary relation은 발광하는 막(膜)으로 응축된다. 이게 영주님 아키텍처의 <em>temporal tiering</em>과 <em>episode segmentation</em>의 시각적 기반이다.
+  </p>
+</section>
+
+<section class="viz-section">
+  <div class="viz-stage">
+    <canvas id="three-canvas"></canvas>
+
+    <div class="viz-legend">
+      <div class="lg-section">
+        <div class="lg-title">Entity types</div>
+        <div class="lg-row"><span class="lg-dot" style="background:#2de8c8;box-shadow:0 0 8px #2de8c8"></span> Player</div>
+        <div class="lg-row"><span class="lg-dot" style="background:#ffb347;box-shadow:0 0 8px #ffb347"></span> Device</div>
+        <div class="lg-row"><span class="lg-dot" style="background:#ff6b9d;box-shadow:0 0 8px #ff6b9d"></span> Location</div>
+      </div>
+      <div class="lg-section">
+        <div class="lg-title">Relation types</div>
+        <div class="lg-row"><span class="lg-bar" style="background:#2de8c8;box-shadow:0 0 6px #2de8c8"></span> login</div>
+        <div class="lg-row"><span class="lg-bar" style="background:#ff6b9d;box-shadow:0 0 6px #ff6b9d"></span> chat</div>
+        <div class="lg-row"><span class="lg-bar" style="background:#ffb347;box-shadow:0 0 6px #ffb347"></span> trade</div>
+        <div class="lg-row"><span class="lg-bar" style="background:#a78bfa;box-shadow:0 0 6px #a78bfa"></span> party_quest</div>
+        <div class="lg-row"><span class="lg-bar" style="background:#ff6b6b;box-shadow:0 0 6px #ff6b6b"></span> duel</div>
+        <div class="lg-row"><span class="lg-bar" style="background:#60a5fa;box-shadow:0 0 6px #60a5fa"></span> logout</div>
+      </div>
+    </div>
+
+    <div class="viz-stats">
+      <div class="s-title">Composition</div>
+      <div class="s-row"><span class="k">Time layers</span><span class="v" id="s-layers">5</span></div>
+      <div class="s-row"><span class="k">Batch window</span><span class="v">1h</span></div>
+      <div class="s-row"><span class="k">Total span</span><span class="v" id="s-span">5h</span></div>
+      <div class="s-row divide"><span class="k">Unique entities</span><span class="v accent" id="s-entities">11</span></div>
+      <div class="s-row accent"><span class="k">Hyperedges</span><span class="v" id="s-hyper">14</span></div>
+      <div class="s-row"><span class="k">Entity tracks</span><span class="v" id="s-tracks">9</span></div>
+    </div>
+
+    <div class="tier-panel">
+      <div class="tp-title">Tier mapping</div>
+      <div class="tp-row"><span class="lg-bar" style="background:#ff6b6b;width:18px"></span> Hot — most recent batch</div>
+      <div class="tp-row"><span class="lg-bar" style="background:#ffb347;width:18px"></span> Warm — recent layers</div>
+      <div class="tp-row"><span class="lg-bar" style="background:#60a5fa;width:18px"></span> Cold — older layers</div>
+    </div>
+
+    <div class="viz-controls">
+      <button class="mode-btn active" data-layers="5">5h · 5 layers</button>
+      <button class="mode-btn" data-layers="10">10h · 10 layers</button>
+    </div>
+
+    <div class="viz-hint">drag to rotate · scroll to zoom</div>
+  </div>
+</section>
+
+<footer>
+  <div class="f-title">§ Reading the visualization</div>
+  <div class="f-body">
+    <p>
+      각 <strong>수평 평면</strong>은 1시간 batch 안에 발생한 모든 typed n-ary relation을 담는다. 디스크 모양의 반투명 boundary가 batch 경계를 표시하고, 그 안에 그 시간대 vertex들이 떠 있다. <em>같은 엔티티</em>가 여러 batch에 걸쳐 등장할 때 — 점선 column이 그 엔티티의 시간 trajectory를 보여준다.
+    </p>
+    <p>
+      Hyperedge의 색상은 relation type을 인코딩한다. 시간이 위로 올라갈수록(hot) 색이 따뜻해지고, 아래로 내려갈수록(cold) 차가워진다 — 이게 영주님이 설계한 <strong>temporal tiering</strong>의 시각적 매핑이다. 위쪽 layer는 hot tier(MVCC, in-memory row), 아래는 warm/cold tier(columnar compressed)에 대응한다.
+    </p>
+    <p>
+      <code>5h</code> 모드는 단기 episode 단위, <code>10h</code> 모드는 더 긴 episodic memory consolidation 단위로 보면 된다. Episode Segmentation Theory가 찾는 "경계"는 인접 layer 사이의 relation type 분포 변화로 드러나고, ACT-R base-level activation은 같은 entity column이 받는 hyperedge 빈도와 recency로 결정된다.
+    </p>
+  </div>
+</footer>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+// ===== ENTITY POOL =====
+// XZ 좌표는 entity별로 고정 — 시간 layer를 관통할 때 같은 위치 유지
+const TYPE_COLORS = {
+  player:   0x2de8c8,
+  device:   0xffb347,
+  location: 0xff6b9d,
+};
+
+const entityPool = {
+  U1: { type: 'player',   xz: [-7, 2] },
+  U2: { type: 'player',   xz: [7, 2] },
+  U3: { type: 'player',   xz: [-5, -5] },
+  U4: { type: 'player',   xz: [5, -5] },
+  U5: { type: 'player',   xz: [0, 6] },
+  D1: { type: 'device',   xz: [-9, -2] },
+  D2: { type: 'device',   xz: [9, -2] },
+  D3: { type: 'device',   xz: [0, -8] },
+  L1: { type: 'location', xz: [-3, 5] },
+  L2: { type: 'location', xz: [3, 5] },
+  L3: { type: 'location', xz: [0, 0] },
+};
+
+// Relation types with role schemas
+const RELATION_TYPES = {
+  login:       { color: 0x2de8c8, roles: ['player', 'device', 'location'] },
+  chat:        { color: 0xff6b9d, roles: ['speaker', 'listener', 'location'] },
+  trade:       { color: 0xffb347, roles: ['giver', 'receiver', 'location'] },
+  party_quest: { color: 0xa78bfa, roles: ['leader', 'member', 'member', 'location'] },
+  duel:        { color: 0xff6b6b, roles: ['challenger', 'opponent', 'arena'] },
+  logout:      { color: 0x60a5fa, roles: ['player', 'device'] },
+};
+
+// ===== DETERMINISTIC BATCH GENERATOR =====
+// Seeded random for reproducible layout
+function mulberry32(seed) {
+  return function() {
+    let t = seed += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function pickN(arr, n, rand) {
+  const a = [...arr]; const out = [];
+  for (let i = 0; i < n && a.length > 0; i++) {
+    const idx = Math.floor(rand() * a.length);
+    out.push(a.splice(idx, 1)[0]);
+  }
+  return out;
+}
+
+function generateBatch(hourIdx, totalLayers) {
+  const rand = mulberry32(hourIdx * 1009 + 7);
+  const playerIds = ['U1', 'U2', 'U3', 'U4', 'U5'];
+  const deviceIds = ['D1', 'D2', 'D3'];
+  const locationIds = ['L1', 'L2', 'L3'];
+  const relCount = 2 + Math.floor(rand() * 2); // 2-3 relations per batch
+  const relTypeNames = Object.keys(RELATION_TYPES);
+  const batch = [];
+  for (let i = 0; i < relCount; i++) {
+    const typeName = relTypeNames[Math.floor(rand() * relTypeNames.length)];
+    const spec = RELATION_TYPES[typeName];
+    const members = [];
+    spec.roles.forEach(role => {
+      let pool;
+      if (role === 'player' || role === 'speaker' || role === 'listener' ||
+          role === 'giver' || role === 'receiver' || role === 'leader' ||
+          role === 'member' || role === 'challenger' || role === 'opponent') {
+        pool = playerIds;
+      } else if (role === 'device') {
+        pool = deviceIds;
+      } else if (role === 'location' || role === 'arena') {
+        pool = locationIds;
+      }
+      const used = members.map(m => m.id);
+      const candidates = pool.filter(p => !used.includes(p));
+      if (candidates.length === 0) return;
+      members.push({ id: candidates[Math.floor(rand() * candidates.length)], role });
+    });
+    if (members.length >= 2) {
+      batch.push({ type: typeName, color: spec.color, members });
+    }
+  }
+  return batch;
+}
+
+// ===== SCENE =====
+const canvas = document.getElementById('three-canvas');
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x08080c, 30, 100);
+
+const camera = new THREE.PerspectiveCamera(40, canvas.clientWidth / canvas.clientHeight, 0.1, 300);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+renderer.setClearColor(0x000000, 0);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(canvas.clientWidth, canvas.clientHeight);
+labelRenderer.domElement.style.position = 'absolute';
+labelRenderer.domElement.style.top = '0';
+labelRenderer.domElement.style.left = '0';
+labelRenderer.domElement.style.width = '100%';
+labelRenderer.domElement.style.height = '100%';
+labelRenderer.domElement.style.pointerEvents = 'none';
+canvas.parentElement.appendChild(labelRenderer.domElement);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 18;
+controls.maxDistance = 80;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.4;
+controls.target.set(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0x404050, 0.6));
+const keyLight = new THREE.PointLight(0x2de8c8, 1.0, 120);
+keyLight.position.set(-15, 20, 12);
+scene.add(keyLight);
+const fillLight = new THREE.PointLight(0xff6b9d, 0.5, 100);
+fillLight.position.set(15, -10, -12);
+scene.add(fillLight);
+const topLight = new THREE.PointLight(0xffb347, 0.6, 100);
+topLight.position.set(0, 30, 0);
+scene.add(topLight);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(canvas.clientWidth, canvas.clientHeight), 0.95, 0.5, 0.15);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// Background particles (sparse)
+function makeParticles() {
+  const count = 350;
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const r = 50 + Math.random() * 50;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i*3]     = r * Math.sin(phi) * Math.cos(theta);
+    positions[i*3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i*3 + 2] = r * Math.cos(phi);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const m = new THREE.PointsMaterial({
+    color: 0xffffff, size: 0.07, transparent: true, opacity: 0.45,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  return new THREE.Points(g, m);
+}
+scene.add(makeParticles());
+
+// ===== HELPERS =====
+function makeEntityMesh(type) {
+  const group = new THREE.Group();
+  const color = TYPE_COLORS[type];
+  let geom;
+  if (type === 'player') geom = new THREE.IcosahedronGeometry(0.42, 1);
+  else if (type === 'device') geom = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+  else geom = new THREE.OctahedronGeometry(0.5, 0);
+  const mat = new THREE.MeshStandardMaterial({
+    color, emissive: color, emissiveIntensity: 0.55,
+    roughness: 0.3, metalness: 0.5,
+  });
+  const mesh = new THREE.Mesh(geom, mat);
+  group.add(mesh);
+  const halo = new THREE.Mesh(
+    new THREE.SphereGeometry(0.7, 16, 16),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  group.add(halo);
+  group.userData = { mesh, halo };
+  return group;
+}
+
+function sortByAngle(positions, centroid) {
+  const rel = positions.map(p => p.clone().sub(centroid));
+  let maxLen = 0, axis1 = rel[0].clone();
+  rel.forEach(r => { if (r.length() > maxLen) { maxLen = r.length(); axis1 = r.clone(); } });
+  axis1.normalize();
+  let axis2 = null;
+  for (const r of rel) {
+    const proj = r.clone().sub(axis1.clone().multiplyScalar(r.dot(axis1)));
+    if (proj.length() > 0.3) { axis2 = proj.normalize(); break; }
+  }
+  if (!axis2) axis2 = new THREE.Vector3(0,1,0).cross(axis1).normalize();
+  const withAngle = positions.map(p => {
+    const r = p.clone().sub(centroid);
+    return { p, angle: Math.atan2(r.dot(axis2), r.dot(axis1)) };
+  });
+  withAngle.sort((a, b) => a.angle - b.angle);
+  return withAngle.map(w => w.p);
+}
+
+function makeHyperedge(positions, color) {
+  if (positions.length < 2) return null;
+  const centroid = new THREE.Vector3();
+  positions.forEach(p => centroid.add(p));
+  centroid.divideScalar(positions.length);
+
+  const group = new THREE.Group();
+
+  // Special case: arity 2 → just a thick line
+  if (positions.length === 2) {
+    const lineGeom = new THREE.BufferGeometry().setFromPoints(positions);
+    const lineMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 });
+    group.add(new THREE.Line(lineGeom, lineMat));
+    group.userData = { centroid, baseColor: color, phase: Math.random()*Math.PI*2, mesh: null, line: group.children[0], spokes: [] };
+    return group;
+  }
+
+  const sorted = sortByAngle(positions, centroid);
+  const n = sorted.length;
+
+  // Triangle fan
+  const verts = [];
+  for (let i = 0; i < n; i++) {
+    const a = sorted[i], b = sorted[(i+1) % n];
+    verts.push(centroid.x, centroid.y, centroid.z);
+    verts.push(a.x, a.y, a.z);
+    verts.push(b.x, b.y, b.z);
+  }
+  const meshGeom = new THREE.BufferGeometry();
+  meshGeom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  meshGeom.computeVertexNormals();
+  const mesh = new THREE.Mesh(
+    meshGeom,
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  group.add(mesh);
+
+  // Perimeter
+  const linePts = [];
+  for (let i = 0; i <= n; i++) linePts.push(sorted[i % n]);
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(linePts),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 })
+  );
+  group.add(line);
+
+  // Spokes from centroid (subtle)
+  const spokes = sorted.map(p => {
+    const sg = new THREE.BufferGeometry().setFromPoints([centroid.clone(), p.clone()]);
+    const sm = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.22 });
+    const s = new THREE.Line(sg, sm);
+    group.add(s);
+    return s;
+  });
+
+  group.userData = { mesh, line, spokes, centroid, baseColor: color, phase: Math.random()*Math.PI*2 };
+  return group;
+}
+
+// Slab boundary disc
+function makeSlabBoundary(radius, color, opacity) {
+  const group = new THREE.Group();
+  // Ring
+  const ringGeom = new THREE.RingGeometry(radius * 0.98, radius, 64);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false,
+  });
+  const ring = new THREE.Mesh(ringGeom, ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  group.add(ring);
+
+  // Faint disc
+  const discGeom = new THREE.CircleGeometry(radius, 64);
+  const discMat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: opacity * 0.05, side: THREE.DoubleSide, depthWrite: false,
+  });
+  const disc = new THREE.Mesh(discGeom, discMat);
+  disc.rotation.x = -Math.PI / 2;
+  group.add(disc);
+
+  return group;
+}
+
+// Tier color lookup (warm = recent, cool = old)
+function tierColor(layerIdx, totalLayers) {
+  const t = layerIdx / Math.max(1, totalLayers - 1); // 0 = bottom (oldest), 1 = top (newest)
+  // Cold blue → warm amber → hot red gradient
+  if (t < 0.4) {
+    // Blue → cyan (cold)
+    return new THREE.Color().setHSL(0.58 - t * 0.1, 0.55, 0.55);
+  } else if (t < 0.75) {
+    // Cyan → amber (warm)
+    const u = (t - 0.4) / 0.35;
+    return new THREE.Color().setHSL(0.5 - u * 0.42, 0.65, 0.55);
+  } else {
+    // Amber → red (hot)
+    const u = (t - 0.75) / 0.25;
+    return new THREE.Color().setHSL(0.08 - u * 0.06, 0.7, 0.6);
+  }
+}
+
+// ===== STATE =====
+const state = {
+  layers: 5,
+  scene: new THREE.Group(),
+};
+scene.add(state.scene);
+
+function clearScene(group) {
+  while (group.children.length > 0) {
+    const child = group.children[0];
+    group.remove(child);
+    // Remove CSS2D labels recursively
+    child.traverse?.(obj => {
+      if (obj.element && obj.element.parentNode) obj.element.parentNode.removeChild(obj.element);
+    });
+  }
+  // Also clean any orphan CSS2D
+  document.querySelectorAll('#three-canvas + div div[data-temp-label]').forEach(el => el.remove());
+}
+
+const allHyperedges = []; // for animation pulse
+const allEntityMeshes = []; // for breathing halo
+
+function buildScene(numLayers) {
+  // Clear previous
+  while (state.scene.children.length > 0) {
+    const c = state.scene.children[0];
+    state.scene.remove(c);
+  }
+  // Remove orphan labels
+  document.querySelectorAll('.temp-label').forEach(el => el.remove());
+  allHyperedges.length = 0;
+  allEntityMeshes.length = 0;
+
+  // Layer config
+  const layerSpacing = numLayers === 5 ? 4.5 : 3.0;
+  const totalHeight = (numLayers - 1) * layerSpacing;
+  const yStart = -totalHeight / 2;
+  const slabRadius = 12;
+
+  // Generate batches
+  const batches = [];
+  for (let i = 0; i < numLayers; i++) {
+    batches.push(generateBatch(i, numLayers));
+  }
+
+  // Track which entities appear in which layers
+  const entityLayerMap = {}; // id → [layerIdx, ...]
+  batches.forEach((batch, layerIdx) => {
+    batch.forEach(rel => {
+      rel.members.forEach(m => {
+        if (!entityLayerMap[m.id]) entityLayerMap[m.id] = new Set();
+        entityLayerMap[m.id].add(layerIdx);
+      });
+    });
+  });
+
+  // Build each layer
+  let totalHyperedges = 0;
+  const startHour = 9;
+
+  batches.forEach((batch, layerIdx) => {
+    const y = yStart + layerIdx * layerSpacing;
+    const tColor = tierColor(layerIdx, numLayers);
+    const tColorHex = '#' + tColor.getHexString();
+
+    // Slab boundary
+    const slab = makeSlabBoundary(slabRadius, tColor.getHex(), 0.25);
+    slab.position.y = y;
+    state.scene.add(slab);
+
+    // Time label on the slab
+    const hourStart = (startHour + layerIdx) % 24;
+    const hourEnd = (startHour + layerIdx + 1) % 24;
+    const fmt = h => h.toString().padStart(2, '0');
+    const timeLabelDiv = document.createElement('div');
+    timeLabelDiv.className = 'temp-label';
+    timeLabelDiv.style.cssText = `font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 500; color: ${tColorHex}; padding: 3px 10px; background: rgba(8,8,12,0.85); border: 0.5px solid ${tColorHex}88; letter-spacing: 0.18em; text-transform: uppercase; pointer-events: none; white-space: nowrap; box-shadow: 0 0 12px ${tColorHex}33;`;
+    timeLabelDiv.textContent = `${fmt(hourStart)}:00 – ${fmt(hourEnd)}:00`;
+    const timeLabel = new CSS2DObject(timeLabelDiv);
+    timeLabel.position.set(-slabRadius - 0.5, y, 0);
+    state.scene.add(timeLabel);
+
+    // Place entities used in this batch
+    const usedEntities = new Set();
+    batch.forEach(rel => rel.members.forEach(m => usedEntities.add(m.id)));
+
+    const entityPositionsThisLayer = {};
+    usedEntities.forEach(id => {
+      const e = entityPool[id];
+      if (!e) return;
+      const pos = new THREE.Vector3(e.xz[0], y, e.xz[1]);
+      entityPositionsThisLayer[id] = pos;
+
+      const mesh = makeEntityMesh(e.type);
+      mesh.position.copy(pos);
+      state.scene.add(mesh);
+      allEntityMeshes.push(mesh);
+
+      // Entity ID label only on the most recent (top) and oldest (bottom) layers to reduce clutter
+      if (layerIdx === 0 || layerIdx === numLayers - 1) {
+        const entDiv = document.createElement('div');
+        entDiv.className = 'temp-label';
+        entDiv.style.cssText = 'font-family: "JetBrains Mono", monospace; font-size: 9px; font-weight: 500; color: #eaeaf0; padding: 2px 6px; background: rgba(8,8,12,0.7); border: 0.5px solid rgba(255,255,255,0.18); letter-spacing: 0.05em; pointer-events: none; white-space: nowrap; opacity: 0.85;';
+        entDiv.textContent = id;
+        const entLabel = new CSS2DObject(entDiv);
+        entLabel.position.set(0, 0.85, 0);
+        mesh.add(entLabel);
+      }
+    });
+
+    // Hyperedges for this batch
+    batch.forEach(rel => {
+      const positions = rel.members
+        .map(m => entityPositionsThisLayer[m.id])
+        .filter(p => p);
+      if (positions.length < 2) return;
+      const hyper = makeHyperedge(positions, rel.color);
+      if (hyper) {
+        state.scene.add(hyper);
+        allHyperedges.push({ obj: hyper, layerIdx });
+        totalHyperedges++;
+      }
+    });
+
+    // Relation type summary label per slab (compact)
+    const relTypes = batch.map(r => r.type);
+    if (relTypes.length > 0) {
+      const summary = relTypes.join(' · ');
+      const sumDiv = document.createElement('div');
+      sumDiv.className = 'temp-label';
+      sumDiv.style.cssText = `font-family: "JetBrains Mono", monospace; font-size: 9px; color: ${tColorHex}; padding: 2px 8px; background: rgba(8,8,12,0.75); border-left: 1px solid ${tColorHex}; letter-spacing: 0.1em; pointer-events: none; white-space: nowrap; opacity: 0.85;`;
+      sumDiv.textContent = summary;
+      const sumLabel = new CSS2DObject(sumDiv);
+      sumLabel.position.set(slabRadius + 0.5, y, 0);
+      state.scene.add(sumLabel);
+    }
+  });
+
+  // Vertical entity tracks — dashed columns connecting same entity across layers
+  let trackCount = 0;
+  Object.entries(entityLayerMap).forEach(([id, layerSet]) => {
+    if (layerSet.size < 2) return; // only multi-layer entities get a track
+    const e = entityPool[id];
+    if (!e) return;
+    const layersArr = [...layerSet].sort((a, b) => a - b);
+    const yLow = yStart + layersArr[0] * layerSpacing;
+    const yHigh = yStart + layersArr[layersArr.length - 1] * layerSpacing;
+    const top = new THREE.Vector3(e.xz[0], yHigh, e.xz[1]);
+    const bottom = new THREE.Vector3(e.xz[0], yLow, e.xz[1]);
+    const geom = new THREE.BufferGeometry().setFromPoints([bottom, top]);
+    const trackColor = TYPE_COLORS[e.type];
+    const mat = new THREE.LineDashedMaterial({
+      color: trackColor, transparent: true, opacity: 0.18,
+      dashSize: 0.25, gapSize: 0.35,
+    });
+    const line = new THREE.Line(geom, mat);
+    line.computeLineDistances();
+    state.scene.add(line);
+    trackCount++;
+  });
+
+  // Camera position adapt
+  const distance = numLayers === 5 ? 26 : 32;
+  const yMid = 0;
+  const elevation = numLayers === 5 ? 12 : 18;
+  camera.position.set(distance * 0.85, elevation, distance);
+  controls.target.set(0, yMid, 0);
+  controls.update();
+
+  // Update stats
+  const uniqueEntities = Object.keys(entityLayerMap).length;
+  document.getElementById('s-layers').textContent = numLayers;
+  document.getElementById('s-span').textContent = numLayers + 'h';
+  document.getElementById('s-entities').textContent = uniqueEntities;
+  document.getElementById('s-hyper').textContent = totalHyperedges;
+  document.getElementById('s-tracks').textContent = trackCount;
+}
+
+// ===== ANIMATION =====
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const time = clock.getElapsedTime();
+  const delta = clock.getDelta();
+
+  allHyperedges.forEach(({ obj, layerIdx }) => {
+    const phase = obj.userData.phase + time * 0.7 + layerIdx * 0.35;
+    const pulse = 0.85 + Math.sin(phase) * 0.15;
+    if (obj.userData.mesh) {
+      obj.userData.mesh.material.opacity = 0.22 * pulse;
+    }
+    if (obj.userData.line) {
+      obj.userData.line.material.opacity = 0.85;
+    }
+    obj.userData.spokes?.forEach(s => { s.material.opacity = 0.22; });
+    obj.scale.setScalar(0.98 + Math.sin(phase) * 0.02);
+  });
+
+  allEntityMeshes.forEach((g, i) => {
+    if (g.userData.halo) {
+      g.userData.halo.material.opacity = 0.06 + Math.sin(time * 0.5 + i * 0.3) * 0.025;
+    }
+    if (g.userData.mesh) {
+      g.userData.mesh.rotation.y += delta * 0.25;
+    }
+  });
+
+  controls.update();
+  composer.render();
+  labelRenderer.render(scene, camera);
+}
+
+// ===== RESIZE =====
+function onResize() {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+  composer.setSize(w, h);
+  bloom.setSize(w, h);
+  labelRenderer.setSize(w, h);
+}
+window.addEventListener('resize', onResize);
+onResize();
+
+controls.addEventListener('start', () => { controls.autoRotate = false; });
+
+// ===== MODE BUTTONS =====
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const layers = parseInt(btn.dataset.layers);
+    state.layers = layers;
+    document.querySelectorAll('.mode-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.layers === btn.dataset.layers);
+    });
+    buildScene(layers);
+  });
+});
+
+// Init
+buildScene(5);
+animate();
+</script>
+
+</body>
+</html>
