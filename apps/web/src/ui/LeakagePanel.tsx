@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { runLeakageCase } from "../api";
 
 interface Verdict {
   score: number;
@@ -42,6 +43,7 @@ async function runLeakage(): Promise<LeakageReport> {
 export function LeakagePanel({ onHighlight }: Props) {
   const [report, setReport] = useState<LeakageReport | null>(null);
   const [loading, setLoading] = useState(false);
+  const [runningId, setRunningId] = useState<string | null>(null);
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
 
   async function run() {
@@ -53,6 +55,28 @@ export function LeakagePanel({ onHighlight }: Props) {
   function highlightCase(c: CaseResult) {
     setSelectedCaseId(c.id);
     onHighlight(c.hyper.ns_ids.length > 0 ? new Set(c.hyper.ns_ids) : null);
+  }
+
+  async function runOne(id: string, ev: React.MouseEvent) {
+    ev.stopPropagation();
+    setRunningId(id);
+    try {
+      const fresh = await runLeakageCase(id);
+      if (!fresh || !report) return;
+      const updated = {
+        ...report,
+        cases: report.cases.map((c) => (c.id === id ? (fresh as CaseResult) : c)),
+      };
+      // recompute totals
+      updated.total_hyper   = updated.cases.reduce((a, c) => a + c.hyper.count, 0);
+      updated.total_triplet = updated.cases.reduce((a, c) => a + c.triplet.count, 0);
+      updated.total_phantom = updated.cases.filter((c) => c.phantom).reduce((a, c) => a + c.triplet.count, 0);
+      const scores = updated.cases.map((c) => c.verdict?.score ?? 0);
+      updated.avg_score = scores.length ? Math.round(scores.reduce((a, x) => a + x, 0) / scores.length) : 0;
+      setReport(updated);
+      setSelectedCaseId(id);
+      onHighlight(fresh.hyper.ns_ids.length ? new Set(fresh.hyper.ns_ids) : null);
+    } finally { setRunningId(null); }
   }
 
   return (
@@ -100,6 +124,12 @@ export function LeakagePanel({ onHighlight }: Props) {
                 <div className="leakage-case-title">
                   <span className={"kind-chip kind-" + c.kind}>{c.kind}</span>
                   {c.title}
+                  <button
+                    className="case-run-btn"
+                    onClick={(e) => void runOne(c.id, e)}
+                    disabled={runningId === c.id}
+                    title="이 케이스만 재실행"
+                  >{runningId === c.id ? "…" : "▷"}</button>
                 </div>
                 <div className="leakage-case-counts">
                   <span title="TypeDB n-ary hyperedge">n-ary <b>{c.hyper.count}</b></span>

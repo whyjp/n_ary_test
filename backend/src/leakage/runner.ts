@@ -78,6 +78,34 @@ async function typedbAlive(): Promise<boolean> {
   }
 }
 
+async function runOne(tok: string, spec: LeakageCase): Promise<CaseResult> {
+  const [h, t] = await Promise.all([typedbNsIds(tok, spec.hyper), tripletCount(spec.triplet)]);
+  const phantom = h.ids.length === 0 && t.count > 0;
+  const base: CaseResult = {
+    id: spec.id,
+    title: spec.title,
+    note: spec.note,
+    kind: spec.kind,
+    hyper:   { tql: spec.hyper,   count: h.ids.length, ns_ids: h.ids, error: h.error },
+    triplet: { cypher: spec.triplet, count: t.count, error: t.error },
+    phantom,
+    ratio: h.ids.length === 0 ? (t.count === 0 ? "—" : "∞") : (t.count / h.ids.length).toFixed(2),
+  };
+  base.verdict = await judgeCase(base, spec);
+  return base;
+}
+
+// Run a single case by id. Returns null if the id is unknown or databases
+// are unreachable.
+export async function runCase(id: string): Promise<CaseResult | null> {
+  const spec = cases.find((c) => c.id === id);
+  if (!spec) return null;
+  const [typedbAv, falkorAv] = await Promise.all([typedbAlive(), falkorPing()]);
+  if (!typedbAv || !falkorAv) return null;
+  const tok = await typedbToken();
+  return await runOne(tok, spec);
+}
+
 export async function runLeakage(): Promise<LeakageReport> {
   const [typedbAv, falkorAv] = await Promise.all([typedbAlive(), falkorPing()]);
   const report: LeakageReport = {
@@ -91,24 +119,12 @@ export async function runLeakage(): Promise<LeakageReport> {
   if (!typedbAv || !falkorAv) return report;
 
   const tok = await typedbToken();
-  for (const c of cases) {
-    const [h, t] = await Promise.all([typedbNsIds(tok, c.hyper), tripletCount(c.triplet)]);
-    const phantom = h.ids.length === 0 && t.count > 0;
-    const result: CaseResult = {
-      id: c.id,
-      title: c.title,
-      note: c.note,
-      kind: c.kind,
-      hyper:   { tql: c.hyper,   count: h.ids.length, ns_ids: h.ids, error: h.error },
-      triplet: { cypher: c.triplet, count: t.count, error: t.error },
-      phantom,
-      ratio: h.ids.length === 0 ? (t.count === 0 ? "—" : "∞") : (t.count / h.ids.length).toFixed(2),
-    };
-    result.verdict = await judgeCase(result, c);
+  for (const spec of cases) {
+    const result = await runOne(tok, spec);
     report.cases.push(result);
-    report.total_hyper += h.ids.length;
-    report.total_triplet += t.count;
-    if (phantom) report.total_phantom += t.count;
+    report.total_hyper += result.hyper.count;
+    report.total_triplet += result.triplet.count;
+    if (result.phantom) report.total_phantom += result.triplet.count;
   }
   report.avg_score = report.cases.length
     ? Math.round(report.cases.reduce((a, c) => a + (c.verdict?.score ?? 0), 0) / report.cases.length)

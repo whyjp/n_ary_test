@@ -10,6 +10,7 @@ import { QueryPanel } from "./ui/QueryPanel";
 import { NarrativePanel } from "./ui/NarrativePanel";
 import { LeakagePanel } from "./ui/LeakagePanel";
 import { InfographicBar } from "./ui/InfographicBar";
+import { BenchmarkPanel } from "./ui/BenchmarkPanel";
 
 const INITIAL_FILTERS: Filters = {
   relationType: null,
@@ -139,6 +140,7 @@ export function App() {
       />
       <NarrativePanel onHighlight={setHighlightNsIds} />
       <LeakagePanel onHighlight={setHighlightNsIds} />
+      <BenchmarkPanel />
 
       <div className="controls">
         <div className="source-group">

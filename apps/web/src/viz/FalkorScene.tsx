@@ -62,8 +62,12 @@ export function FalkorScene({ nodeScale }: Props) {
     let alive = true;
     fetchFalkorGraph().then((g) => {
       if (!alive) return;
-      if (!g.falkor_available) setErrored(true);
-      setNodes(g.nodes); setEdges(g.edges); setLoading(false);
+      const safeNodes = Array.isArray(g?.nodes) ? g.nodes : [];
+      const safeEdges = Array.isArray(g?.edges) ? g.edges : [];
+      if (!g?.falkor_available || (safeNodes.length === 0 && safeEdges.length === 0)) {
+        setErrored(true);
+      }
+      setNodes(safeNodes); setEdges(safeEdges); setLoading(false);
     }).catch(() => { if (alive) { setErrored(true); setLoading(false); } });
     return () => { alive = false; };
   }, []);
@@ -72,7 +76,8 @@ export function FalkorScene({ nodeScale }: Props) {
   const layerY = 0;
   const positions = useMemo(() => {
     const m = new Map<string, [number, number, number]>();
-    for (const n of nodes) {
+    for (const n of nodes ?? []) {
+      if (!n?.id) continue;
       const kind = LABEL_TO_KIND[n.label] ?? "item";
       const [x, z] = xzFor(n.id, kind);
       m.set(n.id, [x, layerY, z]);

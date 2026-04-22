@@ -291,6 +291,40 @@ body,
   max-width: 360px;
   max-height: 60vh;
 }
+.panel.benchmark {
+  grid-area: bench;
+  align-self: start;
+  max-width: 360px;
+  max-height: 55vh;
+}
+.benchmark-note {
+  font-family: var(--body); font-size: 11.5px; color: var(--text-dim);
+  line-height: 1.55; margin-bottom: 10px;
+}
+.bench-storage-head {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--accent-pg);
+  margin: 10px 0 6px;
+}
+.bench-row {
+  display: grid; grid-template-columns: 54px 1fr 66px;
+  align-items: center; gap: 8px; margin: 4px 0;
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em;
+  color: var(--text-faint); text-transform: uppercase;
+}
+.bench-row .bar-val { text-align: right; color: var(--text); font-size: 10px; letter-spacing: 0.02em; }
+.bench-blowup {
+  font-family: var(--mono); font-size: 10px; color: var(--text-dim);
+  margin-top: 6px; line-height: 1.55;
+}
+.bench-blowup b { color: var(--text); }
+.bench-lat-case {
+  border-top: 0.5px dashed rgba(255,255,255,0.06);
+  padding: 6px 0 2px; margin-top: 4px;
+}
+.bench-lat-title {
+  font-size: 11px; color: var(--text); margin-bottom: 3px;
+}
 
 .infograph-bar {
   grid-area: info;
@@ -504,6 +538,16 @@ body,
   color: var(--accent-red); font-weight: 600; letter-spacing: 0.12em;
   font-size: 9px; padding: 1px 5px; border: 0.5px solid var(--accent-red);
 }
+.case-run-btn {
+  float: right;
+  background: transparent; color: var(--accent-nary);
+  border: 0.5px solid rgba(45,232,200,0.35);
+  font-family: var(--mono); font-size: 10px;
+  padding: 1px 6px; cursor: pointer; margin-left: 4px;
+}
+.case-run-btn:hover { background: rgba(45,232,200,0.1); }
+.case-run-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
 .kind-chip {
   display: inline-block; font-size: 8.5px; letter-spacing: 0.14em;
   padding: 1px 5px; margin-right: 6px; border-radius: 1px;
@@ -592,7 +636,7 @@ body,
   grid-template-areas:
     "info   info   info "
     "hdr    hdr    stats"
-    "query  .      leak "
+    "query  bench  leak "
     "narr   ctl    hint ";
   gap: 14px 20px;
   padding: 16px 24px 24px 24px;

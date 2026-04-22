@@ -9,7 +9,8 @@
 import type { Dataset, Episode } from "../domain/types.ts";
 import { fetchDataset, runReadQuery, ping } from "../typedb/client.ts";
 import { translateAndRun } from "../narrative/translate.ts";
-import { runLeakage } from "../leakage/runner.ts";
+import { runLeakage, runCase } from "../leakage/runner.ts";
+import { runBenchmark, computeStorage } from "../leakage/benchmark.ts";
 import { graphStats, graphDump, ping as falkorPing } from "../falkor/client.ts";
 
 function flag(name: string, fallback: string): string {
@@ -204,6 +205,35 @@ Bun.serve({
     if (url.pathname === "/api/leakage/run") {
       const report = await runLeakage();
       return json(report);
+    }
+
+    // Run a single leakage case by id.
+    if (url.pathname === "/api/leakage/run-case" && req.method === "POST") {
+      const body = await req.json() as { id?: string };
+      if (!body.id) return json({ error: "missing id" }, 400);
+      const result = await runCase(body.id);
+      if (!result) return json({ error: "unknown_case_or_db_unreachable" }, 404);
+      return json(result);
+    }
+
+    // Storage + latency benchmark — triggers real query rounds.
+    if (url.pathname === "/api/benchmark") {
+      if (!cache.dataset) return json({ error: "no_data_in_typedb" }, 503);
+      const falkorGraph = (await falkorPing())
+        ? await graphStats(process.env.FALKOR_GRAPH ?? "n_ary_triplet")
+        : { nodes: 0, edges: 0 };
+      const iter = Number(url.searchParams.get("iter") ?? "5");
+      const report = await runBenchmark(cache.dataset, falkorGraph, iter);
+      return json(report);
+    }
+
+    // Cheap storage-only summary (no query rounds).
+    if (url.pathname === "/api/benchmark/storage") {
+      if (!cache.dataset) return json({ error: "no_data_in_typedb" }, 503);
+      const falkorGraph = (await falkorPing())
+        ? await graphStats(process.env.FALKOR_GRAPH ?? "n_ary_triplet")
+        : { nodes: 0, edges: 0 };
+      return json(computeStorage(cache.dataset, falkorGraph));
     }
 
     // Natural-language episodic query.

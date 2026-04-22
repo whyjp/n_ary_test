@@ -65,12 +65,69 @@ export interface FalkorGraphResponse {
   falkor_available: boolean;
 }
 
+export interface CaseResultResponse {
+  id: string;
+  title: string;
+  note: string;
+  kind: "co_occur" | "multi_hop" | "cardinality";
+  hyper: { tql: string; count: number; ns_ids: string[]; error?: string };
+  triplet: { cypher: string; count: number; error?: string };
+  phantom: boolean;
+  ratio: string;
+  verdict?: {
+    score: number;
+    kind: "phantom" | "underrecall" | "exact" | "empty";
+    rule_verdict: string;
+    llm_verdict?: string;
+    judge: "heuristic" | "openai" | "anthropic";
+  };
+}
+
+export async function runLeakageCase(id: string): Promise<CaseResultResponse | null> {
+  const res = await fetch("/api/leakage/run-case", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) return null;
+  return await res.json();
+}
+
+export interface BenchmarkReport {
+  iterations: number;
+  storage: {
+    typedb: { episodes: number; role_bindings: number; attribute_bindings: number;
+              entity_instances: number; total_records: number };
+    falkor: { nodes: number; edges: number; total_records: number };
+    blowup_ratio: number;
+  };
+  latency: Array<{
+    id: string; title: string; kind: "co_occur" | "multi_hop" | "cardinality";
+    hyper_ms_median: number; triplet_ms_median: number;
+    hyper_ms_samples: number[]; triplet_ms_samples: number[];
+  }>;
+  totals: { hyper_ms_median: number; triplet_ms_median: number };
+  stale: boolean;
+}
+
+export async function fetchBenchmark(iter = 5): Promise<BenchmarkReport> {
+  const res = await fetch(`/api/benchmark?iter=${iter}`);
+  return await res.json();
+}
+
 export async function fetchFalkorGraph(): Promise<FalkorGraphResponse> {
-  const res = await fetch("/api/falkor-graph");
-  if (res.status === 503) {
+  try {
+    const res = await fetch("/api/falkor-graph");
+    if (!res.ok) return { nodes: [], edges: [], falkor_available: false };
+    const body = await res.json();
+    return {
+      nodes: Array.isArray(body?.nodes) ? body.nodes : [],
+      edges: Array.isArray(body?.edges) ? body.edges : [],
+      falkor_available: Boolean(body?.falkor_available ?? (Array.isArray(body?.nodes) && body.nodes.length > 0)),
+    };
+  } catch {
     return { nodes: [], edges: [], falkor_available: false };
   }
-  return await res.json();
 }
 
 export async function refreshServer(): Promise<{ ok: boolean; data_source: string; episodes: number }> {
