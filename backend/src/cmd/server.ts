@@ -10,6 +10,7 @@ import path from "node:path";
 import type { Dataset, Episode } from "../domain/types.ts";
 import { fetchDataset, runReadQuery, ping } from "../typedb/client.ts";
 import { translateAndRun } from "../narrative/translate.ts";
+import { runLeakage } from "../leakage/runner.ts";
 
 function flag(name: string, fallback: string): string {
   const i = Bun.argv.indexOf(name);
@@ -135,6 +136,12 @@ Bun.serve({
       if (!body.tql) return json({ error: "missing tql" }, 400);
       const r = await runReadQuery(body.tql);
       return json(r);
+    }
+
+    // Cross-episode leakage comparison (TypeDB hyperedge vs FalkorDB triplet).
+    if (url.pathname === "/api/leakage/run") {
+      const report = await runLeakage();
+      return json(report);
     }
 
     // Natural-language episodic query.

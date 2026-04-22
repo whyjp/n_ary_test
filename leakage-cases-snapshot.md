@@ -1,0 +1,179 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - generic [ref=e8]:
+      - generic: 09:00 · 532
+    - generic [ref=e9]:
+      - generic: 10:00 · 467
+  - generic:
+    - generic:
+      - generic: n-ary hyperedges · temporal layers
+      - generic:
+        - text: 1분/1시간
+        - emphasis: 평면
+        - text: · 교차 하이퍼엣지
+      - generic: 1 player · 60 min · 999 episodes. Each episode is a hyperedge connecting typed entities across the L0/L1/L2/L3 NodeSet layers. Minute view shows 60 planes at 1-minute resolution; hour view aggregates into 2 planes straddling the 10:00 boundary.
+    - generic [ref=e10]:
+      - generic [ref=e11]: Composition
+      - generic [ref=e12]:
+        - generic [ref=e13]: Total episodes
+        - generic [ref=e14]: "999"
+      - generic [ref=e15]:
+        - generic [ref=e16]: Visible (filters)
+        - generic [ref=e17]: "999"
+      - generic [ref=e18]:
+        - generic [ref=e19]: Entities
+        - generic [ref=e20]: "37"
+      - separator [ref=e21]
+      - generic [ref=e22]:
+        - generic [ref=e23]: Crosses minute
+        - generic [ref=e24]: "182"
+      - generic [ref=e25]:
+        - generic [ref=e26]: Crosses hour
+        - generic [ref=e27]: "33"
+      - separator [ref=e28]
+      - generic [ref=e29]:
+        - generic [ref=e30]: Window
+        - generic [ref=e31]: 09:00—10:31
+      - generic [ref=e32]:
+        - generic [ref=e33]: Seed
+        - generic [ref=e34]: "-1"
+      - generic [ref=e35]:
+        - generic [ref=e36]: TypeDB
+        - generic [ref=e37]: connected
+      - generic [ref=e38]:
+        - generic [ref=e39]: Data source
+        - generic [ref=e40]: typedb
+      - button "refresh from typedb" [ref=e41] [cursor=pointer]
+    - generic [ref=e42]:
+      - generic [ref=e43]: Filter (client-side)
+      - generic [ref=e44]:
+        - text: relation_type
+        - combobox "relation_type" [ref=e45]:
+          - option "—" [selected]
+          - option "accept_quest"
+          - option "chat_npc"
+          - option "complete_quest"
+          - option "duel"
+          - option "enter_zone"
+          - option "kill_mob"
+          - option "level_up"
+          - option "login"
+          - option "logout"
+          - option "party_invite"
+          - option "trade"
+          - option "use_item"
+      - generic [ref=e46]:
+        - text: activity_type (L2)
+        - combobox "activity_type (L2)" [ref=e47]:
+          - option "—" [selected]
+          - option "authentication"
+          - option "combat"
+          - option "commerce"
+          - option "progression"
+          - option "quest"
+          - option "social"
+          - option "traversal"
+          - option "utility"
+      - generic [ref=e48]:
+        - text: touches entity (L0)
+        - combobox "touches entity (L0)" [ref=e49]:
+          - option "—" [selected]
+          - option "player P1"
+          - option "npc N3"
+          - option "npc N4"
+          - option "npc N5"
+          - option "npc N6"
+          - option "npc N1"
+          - option "npc N2"
+          - option "location L1"
+          - option "location L2"
+          - option "location L3"
+          - option "location L4"
+          - option "location L5"
+          - option "location L6"
+          - option "device D1"
+          - option "device D2"
+          - option "mob M1"
+          - option "mob M4"
+          - option "mob M5"
+          - option "mob M6"
+          - option "mob M2"
+          - option "mob M8"
+          - option "mob M3"
+          - option "mob M7"
+          - option "item I1"
+          - option "item I7"
+          - option "item I2"
+          - option "item I4"
+          - option "item I6"
+          - option "item I3"
+          - option "item I8"
+          - option "item I5"
+          - option "item I9"
+          - option "item I14"
+          - option "item I10"
+          - option "item I12"
+          - option "item I13"
+          - option "item I11"
+      - generic [ref=e50] [cursor=pointer]:
+        - text: crosses time boundary
+        - checkbox "crosses time boundary" [ref=e51]
+      - generic [ref=e52]:
+        - text: min importance (L1)
+        - spinbutton "min importance (L1)" [ref=e53]: "0"
+      - button "reset" [ref=e54] [cursor=pointer]
+      - separator [ref=e55]
+      - generic [ref=e56]: TypeQL (server)
+      - textbox [ref=e57]: "match $p isa player, has player_id \"P1\"; $e isa episode, links (actor: $p), has crosses_hour true; get $e;"
+      - button "run match (docker exec)" [ref=e58] [cursor=pointer]
+    - generic [ref=e59]:
+      - generic [ref=e60]: 에피소드 질의 · 자연어
+      - generic [ref=e61]:
+        - button "10:00 이후 던전1 에서 전투" [ref=e62] [cursor=pointer]
+        - button "중요한 퀘스트" [ref=e63] [cursor=pointer]
+        - button "상인과의 대화" [ref=e64] [cursor=pointer]
+        - button "시간 경계를 횡단한 에피소드" [ref=e65] [cursor=pointer]
+        - button "10:00 부터 10:20 까지 숲변두리 에서 아이…" [ref=e66] [cursor=pointer]
+      - 'textbox "예: \"10:00 이후 던전1 에서 전투\"" [ref=e67]': 10:00 이후 던전1 에서 전투
+      - generic [ref=e68]:
+        - button "질의" [ref=e69] [cursor=pointer]
+        - button "초기화" [ref=e70] [cursor=pointer]
+    - generic [ref=e71]:
+      - generic [ref=e72]: Episode boundary · leakage test
+      - generic [ref=e88]:
+        - generic [ref=e89]: hyperedge 19
+        - generic [ref=e90]: triplet 10
+        - generic [ref=e91]: phantom 3
+      - generic [ref=e92]:
+        - generic [ref=e93] [cursor=pointer]:
+          - generic [ref=e94]: Case 1 · P1이 I4(금화)를 L3(던전1)에서 사용
+          - generic [ref=e95]
+          - generic [ref=e100]: Hyperedge는 item·actor·location을 단일 에피소드 안에 강제. Triplet은 세 개의 독립 엣지(player→I4, I4→L3, player→L3)를 조인 — 각각 다른 에피소드에서 왔을 수 있어 cardinality가 1로 dedupe되며 의미가 희석된다.
+        - generic [ref=e101] [cursor=pointer]:
+          - generic [ref=e102]: Case 2 · P1이 M7(드래곤새끼) 처치 시 N2(퀘스트주인)가 counterpart?
+          - generic [ref=e103]
+          - generic [ref=e109]: 생성기는 counterpart와 mob_target을 같은 에피소드에 바인딩하지 않음. Hyperedge는 구조적으로 0을 반환. Triplet은 player→M7 엣지와 player→N2 엣지를 자유롭게 결합 → phantom.
+        - generic [ref=e110] [cursor=pointer]:
+          - generic [ref=e111]: Case 3 · I5(보석)와 N1(상인)의 공동 등장 위치
+          - generic [ref=e112]
+          - generic [ref=e117]: "Hyperedge: 한 에피소드 안에 두 역할이 같은 location에 바인딩된 경우만. Triplet: L(I5) ∩ L(N1) — 각자 따로 나타났던 모든 위치 집합의 교집합까지 포함."
+        - generic [ref=e118] [cursor=pointer]:
+          - generic [ref=e119]: Case 4 · L3/L4 던전에서 N4와 N6 모두를 counterpart로 하는 듀얼
+          - generic [ref=e120]
+          - generic [ref=e126]: 생성기의 duel 에피소드는 counterpart 1명만. Hyperedge는 0을 반환. Triplet은 두 개의 player→counterpart 엣지가 별개 에피소드에서 왔어도 자유 결합 → phantom.
+      - generic [ref=e127]:
+        - button "재실행" [ref=e128] [cursor=pointer]
+        - button "하이라이트 해제" [ref=e129] [cursor=pointer]
+    - generic [ref=e75]:
+      - button "1min · 60 planes" [ref=e76] [cursor=pointer]
+      - button "1h · 2 planes" [ref=e77] [cursor=pointer]
+      - generic [ref=e78]:
+        - generic [ref=e79]:
+          - generic [ref=e80]: spacing
+          - slider "spacing 1.00×" [ref=e81]: "1"
+          - generic [ref=e82]: 1.00×
+        - generic [ref=e83]:
+          - generic [ref=e84]: node
+          - slider "node 0.90×" [ref=e85]: "0.9"
+          - generic [ref=e86]: 0.90×
+    - generic [ref=e87]: drag to rotate · scroll to zoom

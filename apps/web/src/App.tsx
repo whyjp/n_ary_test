@@ -5,6 +5,7 @@ import { TemporalScene } from "./viz/TemporalScene";
 import { StatsPanel } from "./ui/StatsPanel";
 import { QueryPanel } from "./ui/QueryPanel";
 import { NarrativePanel } from "./ui/NarrativePanel";
+import { LeakagePanel } from "./ui/LeakagePanel";
 
 const INITIAL_FILTERS: Filters = {
   relationType: null,
@@ -101,6 +102,7 @@ export function App() {
         typedbAvailable={typedbAvailable}
       />
       <NarrativePanel onHighlight={setHighlightNsIds} />
+      <LeakagePanel onHighlight={setHighlightNsIds} />
 
       <div className="controls">
         <button
