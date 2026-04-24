@@ -16,7 +16,7 @@ const BATCH = Number(process.env.FALKOR_BATCH ?? "100");
 
 async function main() {
   if (!(await ping())) {
-    console.error("!! FalkorDB not reachable on", process.env.FALKOR_HOST ?? "localhost:6379");
+    console.error("!! FalkorDB not reachable on", process.env.FALKOR_HOST ?? "localhost:26379");
     console.error("   start with: bash scripts/typedb-up.sh (also starts FalkorDB)");
     process.exit(2);
   }

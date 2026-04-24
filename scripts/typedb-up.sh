@@ -12,11 +12,11 @@ cp "$ROOT_DIR/backend/schema.tql" ./schema.tql
 docker compose build
 docker compose up -d
 
-echo "==> waiting for TypeDB HTTP API on :8000"
+echo "==> waiting for TypeDB HTTP API on :28000"
 typedb_up=0
 for i in $(seq 1 60); do
-  if curl -sf -o /dev/null "http://localhost:8000/v1/version" 2>/dev/null \
-    || curl -sf -o /dev/null --max-time 2 "http://localhost:8000/" 2>/dev/null; then
+  if curl -sf -o /dev/null "http://localhost:28000/v1/version" 2>/dev/null \
+    || curl -sf -o /dev/null --max-time 2 "http://localhost:28000/" 2>/dev/null; then
     typedb_up=1; echo "==> TypeDB HTTP up"; break
   fi
   sleep 1
@@ -26,7 +26,7 @@ if [[ $typedb_up -eq 0 ]]; then
   exit 1
 fi
 
-echo "==> waiting for FalkorDB on :6379"
+echo "==> waiting for FalkorDB on :26379 (container-internal :6379)"
 for i in $(seq 1 30); do
   if docker exec n_ary_falkordb redis-cli ping 2>/dev/null | grep -q PONG; then
     echo "==> FalkorDB up"; exit 0

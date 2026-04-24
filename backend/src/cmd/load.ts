@@ -14,7 +14,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-const HTTP_BASE = process.env.TYPEDB_HTTP ?? "http://localhost:8000";
+const HTTP_BASE = process.env.TYPEDB_HTTP ?? "http://localhost:28000";
 const DATABASE  = process.env.TYPEDB_DATABASE ?? "n_ary";
 const USER      = process.env.TYPEDB_USER ?? "admin";
 const PASSWORD  = process.env.TYPEDB_PASSWORD ?? "password";

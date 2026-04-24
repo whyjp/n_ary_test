@@ -3,7 +3,8 @@
 # can reference a stable in-container path.
 FROM typedb/typedb:latest
 
-COPY schema.tql /opt/schema/schema.tql
+COPY backend/schema.tql /opt/schema/schema.tql
 
-# TypeDB server listens on 1729 (gRPC).
+# TypeDB server listens on 1729 (gRPC) inside the container.
+# docker-compose.yml remaps host ports to 21729 (gRPC) / 28000 (HTTP) to avoid clashes.
 EXPOSE 1729

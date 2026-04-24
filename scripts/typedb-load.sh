@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Create database `n_ary` (if missing), apply schema, and ingest generated data
 # through the TypeDB 3.x HTTP API. Runs from WSL but relies on the host's
-# published port (docker-compose maps container 8000 -> host 8000).
+# published port (docker-compose maps container 8000 -> host 28000).
 #
 # Expects:
 #   - scripts/typedb-up.sh has launched the container

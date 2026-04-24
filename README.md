@@ -97,7 +97,7 @@ TypeDB 3 용 TS gRPC 드라이버 부재로 HTTP API를 fetch로 호출하며,
 
 ```
 docker/
-  docker-compose.yml           # TypeDB :8000/:1729 + FalkorDB :6379
+  docker-compose.yml           # TypeDB host :28000/:21729 + FalkorDB host :26379 (container-internal 8000/1729/6379)
   Dockerfile                   # TypeDB 스키마만 베이크하는 얇은 래퍼
 scripts/
   typedb-up.sh                 # compose up (두 DB 모두 기동)

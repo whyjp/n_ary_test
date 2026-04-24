@@ -10,7 +10,7 @@
 import { connect } from "node:net";
 
 const HOST = process.env.FALKOR_HOST ?? "localhost";
-const PORT = Number(process.env.FALKOR_PORT ?? "6379");
+const PORT = Number(process.env.FALKOR_PORT ?? "26379");
 
 function encodeRESP(args: string[]): Buffer {
   const parts: string[] = [`*${args.length}\r\n`];

@@ -92,7 +92,7 @@ async function main() {
   console.log("=======================================");
 
   if (!(await ping())) {
-    console.error("!! TypeDB HTTP API not reachable on", process.env.TYPEDB_HTTP ?? "http://localhost:8000");
+    console.error("!! TypeDB HTTP API not reachable on", process.env.TYPEDB_HTTP ?? "http://localhost:28000");
     console.error("   start with: bash scripts/typedb-up.sh");
     console.error("   load with : bash scripts/typedb-load.sh  (or: bun run src/cmd/load.ts)");
     process.exit(2);

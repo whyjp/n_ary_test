@@ -1,4 +1,4 @@
-// TypeDB 3.x HTTP client. Uses the built-in HTTP API (default port 8000) so
+// TypeDB 3.x HTTP client. Uses the built-in HTTP API (default host port 28000) so
 // the project depends only on `fetch`, not on a native driver. Auth is the
 // out-of-the-box CE credentials (admin / password); override via env vars.
 //
@@ -9,7 +9,7 @@
 
 import type { Dataset, Episode, EntityKind, Role, RoleName } from "../domain/types.ts";
 
-const HTTP_BASE = process.env.TYPEDB_HTTP ?? "http://localhost:8000";
+const HTTP_BASE = process.env.TYPEDB_HTTP ?? "http://localhost:28000";
 const DATABASE  = process.env.TYPEDB_DATABASE ?? "n_ary";
 const USER      = process.env.TYPEDB_USER ?? "admin";
 const PASSWORD  = process.env.TYPEDB_PASSWORD ?? "password";

@@ -9,7 +9,7 @@ if [[ -z "$Q" ]]; then
   exit 1
 fi
 
-HTTP_BASE="${TYPEDB_HTTP:-http://localhost:8000}"
+HTTP_BASE="${TYPEDB_HTTP:-http://localhost:28000}"
 DB="${TYPEDB_DATABASE:-n_ary}"
 USER="${TYPEDB_USER:-admin}"
 PASSWORD="${TYPEDB_PASSWORD:-password}"

@@ -5,7 +5,7 @@ import { cases, type LeakageCase } from "./cases.ts";
 import { graphQuery, answerCount, ping as falkorPing } from "../falkor/client.ts";
 import { judgeCase, type Verdict } from "./judge.ts";
 
-const TYPEDB_HTTP = process.env.TYPEDB_HTTP ?? "http://localhost:8000";
+const TYPEDB_HTTP = process.env.TYPEDB_HTTP ?? "http://localhost:28000";
 const TYPEDB_DB   = process.env.TYPEDB_DATABASE ?? "n_ary";
 const TYPEDB_USER = process.env.TYPEDB_USER ?? "admin";
 const TYPEDB_PASS = process.env.TYPEDB_PASSWORD ?? "password";

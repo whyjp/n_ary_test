@@ -1,14 +1,14 @@
 services:
   typedb:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
     image: n_ary_test/typedb:3
     container_name: n_ary_typedb
     restart: unless-stopped
     ports:
-      - "1729:1729"   # gRPC (future driver clients)
-      - "8000:8000"   # HTTP API (used by this project)
+      - "21729:1729"   # gRPC (future driver clients) — host +20000 to avoid clashes
+      - "28000:8000"   # HTTP API (used by this project) — host +20000 to avoid clashes
     volumes:
       - typedb_data:/opt/typedb/server/data
     healthcheck:
@@ -24,7 +24,7 @@ services:
     container_name: n_ary_falkordb
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "26379:6379"   # host +20000 to avoid clashes
 
 volumes:
   typedb_data:
